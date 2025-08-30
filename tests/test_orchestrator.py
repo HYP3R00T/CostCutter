@@ -31,5 +31,13 @@ def test_orchestrate_services(monkeypatch):
         "costcutter.orchestrator.create_aws_session",
         lambda cfg: type("Session", (), {"get_available_regions": lambda self, svc: ["us-east-1"]})(),
     )
-    monkeypatch.setattr("costcutter.orchestrator.cleanup_ec2", lambda session, region, dry_run: None)
-    orchestrate_services(dry_run=True)
+    # Replace the handler mapping entry so SERVICE_HANDLERS uses our stub
+    monkeypatch.setattr("costcutter.orchestrator.SERVICE_HANDLERS", {"ec2": (lambda session, region, dry_run: None)})
+    summary = orchestrate_services(dry_run=True)
+    # summary should include counters and events
+    assert isinstance(summary, dict)
+    assert {"processed", "skipped", "failed", "events"}.issubset(set(summary.keys()))
+    assert summary["processed"] == 1
+    assert summary["skipped"] == 0
+    assert summary["failed"] == 0
+    assert isinstance(summary["events"], list)
