@@ -1,3 +1,5 @@
+"""Tests for costcutter.core.session_helper"""
+
 import logging
 import os
 
@@ -33,18 +35,25 @@ def test_create_session_with_explicit_keys(monkeypatch: pytest.MonkeyPatch, capl
     captured: dict = {}
     monkeypatch.setattr(session_helper.boto3, "Session", _fake_session_factory(captured))
 
-    with caplog.at_level(logging.INFO, logger=session_helper.__name__):
-        sess = session_helper.create_aws_session(cfg)
+    # Ensure we capture and restore any existing env var to avoid CI host pollution
+    old_shared = os.environ.pop("AWS_SHARED_CREDENTIALS_FILE", None)
+    try:
+        with caplog.at_level(logging.INFO, logger=session_helper.__name__):
+            sess = session_helper.create_aws_session(cfg)
 
-    assert isinstance(sess, DummySession)
-    assert captured["args"] == ()
-    assert captured["kwargs"] == {
-        "aws_access_key_id": "AKIA_TEST",
-        "aws_secret_access_key": "SECRET",
-        "aws_session_token": "TOKEN",
-    }
-    assert "Using credentials from config (access key + secret)" in "\n".join(caplog.messages)
-    assert os.environ.get("AWS_SHARED_CREDENTIALS_FILE") is None
+        assert isinstance(sess, DummySession)
+        assert captured["args"] == ()
+        assert captured["kwargs"] == {
+            "aws_access_key_id": "AKIA_TEST",
+            "aws_secret_access_key": "SECRET",
+            "aws_session_token": "TOKEN",
+        }
+        assert "Using credentials from config (access key + secret)" in "\n".join(caplog.messages)
+        # If the test environment had this var set we removed it above; ensure it's not present now
+        assert os.environ.get("AWS_SHARED_CREDENTIALS_FILE") is None
+    finally:
+        if old_shared is not None:
+            os.environ["AWS_SHARED_CREDENTIALS_FILE"] = old_shared
 
 
 def test_create_session_with_credentials_file(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):

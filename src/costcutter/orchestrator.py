@@ -8,16 +8,18 @@ from boto3.session import Session
 
 from costcutter.conf.config import get_config
 from costcutter.core.session_helper import create_aws_session
+from costcutter.reporter import get_reporter
 
 # Reporter no longer needed at service-level (resource handlers still record events)
 from costcutter.services.ec2 import cleanup_ec2
+from costcutter.services.s3 import cleanup_s3
 
 logger = logging.getLogger(__name__)
 
 SERVICE_HANDLERS = {
     # Each value can be a functional entrypoint `run(session, region, dry_run, reporter)`
     "ec2": cleanup_ec2,
-    # "s3": cleanup_s3
+    "s3": cleanup_s3,
     # "lambda": cleanup_lambda,
 }
 
@@ -55,7 +57,7 @@ def process_region_service(
 
 def orchestrate_services(
     dry_run: bool = False,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     config = get_config()
 
     # Resolve services
@@ -125,6 +127,9 @@ def orchestrate_services(
         total_tasks = max(1, len(tasks))
         max_workers = min(32, total_tasks)
 
+    # Execute tasks concurrently and track successes/failures
+    succeeded = 0
+    failed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_map: dict[Any, tuple[str, str]] = {}
         for region, service_key, handler_entry in tasks:
@@ -134,6 +139,23 @@ def orchestrate_services(
         for future in as_completed(future_map):
             region, svc_name = future_map[future]
             try:
-                logger.info("[%s][%s] Task completed", region, svc_name)
+                # Propagate exceptions from the task so callers can observe failures
+                future.result()
             except Exception as e:
+                failed += 1
                 logger.exception("[%s][%s] Task failed: %s", region, svc_name, e)
+            else:
+                succeeded += 1
+                logger.info("[%s][%s] Task completed", region, svc_name)
+
+    # After all work is finished, gather recorded events from the global reporter
+    reporter = get_reporter()
+    events = reporter.to_dicts()
+
+    # Return a small summary including counters and serialized events
+    return {
+        "processed": succeeded,
+        "skipped": skipped,
+        "failed": failed,
+        "events": events,
+    }

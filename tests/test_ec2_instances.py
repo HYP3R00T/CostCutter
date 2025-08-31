@@ -1,3 +1,5 @@
+"""Tests for costcutter.services.ec2.instances"""
+
 from costcutter.services.ec2 import instances
 
 

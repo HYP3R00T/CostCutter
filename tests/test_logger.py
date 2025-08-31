@@ -1,3 +1,5 @@
+"""Tests for costcutter.logger"""
+
 import logging
 from contextlib import contextmanager
 from pathlib import Path
