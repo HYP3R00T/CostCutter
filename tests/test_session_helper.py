@@ -1,3 +1,5 @@
+"""Tests for costcutter.core.session_helper"""
+
 import logging
 import os
 

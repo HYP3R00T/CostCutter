@@ -1,3 +1,5 @@
+"""Tests for costcutter.services.ec2.key_pairs"""
+
 from costcutter.services.ec2 import key_pairs
 
 

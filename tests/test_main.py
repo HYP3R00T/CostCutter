@@ -1,3 +1,5 @@
+"""Tests for costcutter.main"""
+
 from costcutter.main import run
 
 

@@ -1,3 +1,5 @@
+"""Tests for costcutter.conf.config"""
+
 from __future__ import annotations
 
 import json
