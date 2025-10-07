@@ -12,7 +12,7 @@ hero:
       link: /guide/what-is-costcutter
     - theme: alt
       text: Quickstart
-      link: /config-reference
+      link: /guide/getting-started
     - theme: alt
       text: GitHub
       link: https://github.com/HYP3R00T/costcutter
