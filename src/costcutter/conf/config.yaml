@@ -19,7 +19,7 @@ aws:
     - us-east-1
     - ap-south-1
   services:
-    # - all to scan for all services (WIP)
-    # - ec2
+    # - all # to scan for all services (WIP)
+    - ec2
     - s3
     # - lambda
