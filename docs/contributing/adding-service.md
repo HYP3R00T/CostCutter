@@ -1,85 +1,68 @@
 # Adding a Service
 
-How to create handlers for new AWS services (Lambda, RDS, etc.).
+This guide covers the steps required to plug a new AWS service into the orchestrator.
 
----
-
-## Steps
-
-### 1. Create Service Directory
+## 1. Scaffold the package
 
 ```bash
 mkdir -p src/costcutter/services/<service>
 touch src/costcutter/services/<service>/__init__.py
 ```
 
----
-
-### 2. Create `__init__.py`
-
-**File:** `src/costcutter/services/<service>/__init__.py`
+Populate `__init__.py` with a top-level cleanup function that calls the service-specific resource modules:
 
 ```python
-from costcutter.services import SERVICE_REGISTRY
+from boto3.session import Session
 
-def cleanup_<service>(session, region, reporter, dry_run=True):
-    """Main entry point for <service> cleanup."""
-    # Import subresource handlers
-    from costcutter.services.<service>.resource1 import cleanup_resource1
-    from costcutter.services.<service>.resource2 import cleanup_resource2
+from costcutter.services.<service>.resource1 import cleanup_resource1
+from costcutter.services.<service>.resource2 import cleanup_resource2
 
-    # Execute in order
-    cleanup_resource1(session, region, reporter, dry_run)
-    cleanup_resource2(session, region, reporter, dry_run)
 
-# Register service
-SERVICE_REGISTRY["<service>"] = {
-    "resource1": {...},
-    "resource2": {...},
+def cleanup_<service>(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:
+    cleanup_resource1(session=session, region=region, dry_run=dry_run, max_workers=max_workers)
+    cleanup_resource2(session=session, region=region, dry_run=dry_run, max_workers=max_workers)
+```
+
+Keep imports at the top of the module (matching existing services) so handlers are loaded once.
+
+## 2. Implement resource handlers
+
+Create one module per resource (see [Adding Subresources](./adding-subresources.md) for details). Each module should:
+
+- Provide a `catalog_<resource>` helper that returns IDs
+- Provide a `cleanup_<resource>` helper that performs a single delete and records an event with `get_reporter()`
+- Provide a `cleanup_<resources>` helper that orchestrates deletion for the collection, usually with `ThreadPoolExecutor`
+
+Use the EC2 handlers (`src/costcutter/services/ec2/`) as a concrete reference.
+
+## 3. Register the service with the orchestrator
+
+Open `src/costcutter/orchestrator.py` and update the `SERVICE_HANDLERS` dictionary:
+
+```python
+from costcutter.services.<service> import cleanup_<service>
+
+SERVICE_HANDLERS = {
+    "ec2": cleanup_ec2,
+    "s3": cleanup_s3,
+    "<service>": cleanup_<service>,
 }
 ```
 
----
+If the service only supports a subset of regions, rely on `session.get_available_regions("<service>")` inside the orchestrator (already implemented) to filter unsupported combinations automatically.
 
-### 3. Add Subresource Handlers
+## 4. Update defaults and documentation
 
-Follow [Adding Subresources](./adding-subresources.md) guide for each resource type.
+- Append the service name to `aws.services` in `src/costcutter/conf/config.yaml`
+- Refresh relevant documentation (for example `docs/guide/supported-services.md`)
 
----
+## 5. Write tests
 
-### 4. Update Configuration
+- Add unit tests under `tests/` that exercise the new handlers
+- Monkeypatch `costcutter.reporter.get_reporter` to return a deterministic stub when asserting on recorded events
+- Cover both dry run and destructive paths where practical
 
-**File:** `src/costcutter/conf/config.yaml`
-
-Add service to `services` list:
-
-```yaml
-services:
-  - ec2
-  - s3
-  - lambda  # New!
-```
-
----
-
-### 5. Write Tests
-
-**File:** `tests/test_<service>.py`
-
-```python
-def test_cleanup_service():
-    session = DummySession()
-    reporter = Reporter()
-
-    cleanup_lambda(session, "us-east-1", reporter, dry_run=True)
-
-    events = reporter.get_events()
-    assert len(events) > 0
-```
-
----
-
-### 6. Quality Checks
+## 6. Run quality checks
 
 ```bash
 mise run fmt
@@ -87,16 +70,6 @@ mise run lint
 mise run test
 ```
 
----
+## Reference implementation
 
-## Example
-
-See `src/costcutter/services/ec2/` for a complete service implementation with multiple subresources.
-
----
-
-## Next Steps
-
-- [Adding Subresources](./adding-subresources.md) : Add resource handlers
-- [Testing Guide](./testing.md) : Write tests
-- [Submission Guidelines](./submission.md) : Submit PR
+`src/costcutter/services/ec2/` demonstrates how to coordinate multiple resource handlers and respect dependencies between them.

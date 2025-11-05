@@ -1,18 +1,12 @@
 # Testing Guide
 
 How to write and run tests.
-
----
-
 ## Writing Tests
 
 ### Test File Location
 
 Mirror the `src/` structure:
 - `src/costcutter/services/ec2/volumes.py` → `tests/test_ec2_volumes.py`
-
----
-
 ### Test Pattern
 
 ```python
@@ -50,9 +44,6 @@ def test_cleanup_volumes_dry_run():
     events = reporter.get_events()
     assert all(e["status"] == "skipped (dry-run)" for e in events)
 ```
-
----
-
 ## Running Tests
 
 ```bash
@@ -65,9 +56,6 @@ pytest tests/test_ec2_volumes.py
 # Run with coverage
 mise run test_cov
 ```
-
----
-
 ## Coverage
 
 Target: 80%+ coverage for new code.
@@ -77,9 +65,6 @@ Check coverage report:
 mise run test_cov
 # Opens HTML report in browser
 ```
-
----
-
 ## Next Steps
 
 - [Code Standards](./code-standards.md) : Follow conventions

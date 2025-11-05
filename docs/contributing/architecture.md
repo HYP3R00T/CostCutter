@@ -1,218 +1,74 @@
 # Architecture
 
-Understanding how CostCutter components work together.
+This document takes a closer look at how the main modules collaborate. It complements the user-facing [Architecture guide](/guide/architecture.md) with implementation details useful to contributors.
 
----
+## Core components
 
-_[Architectural diagram placeholder - will be added as SVG/PNG]_
+### Configuration (`conf/config.py`)
 
----
+- Loads the bundled defaults from `config.yaml`
+- Merges optional overrides from home directory files, an explicit `--config` file, environment variables, and CLI keyword arguments
+- Returns a lightweight `Config` object that supports attribute access (`config.aws.region`) and dictionary-style lookups (`config["aws"]`)
 
-## Core Components
+### Services (`services/`)
 
-### 1. Configuration Management (`conf/`)
+- Each service package exposes a `cleanup_<service>` function (for example `cleanup_ec2` and `cleanup_s3`)
+- Service modules import their resource handlers and execute them in a fixed order; ordering is hard-coded to satisfy dependencies (instances before volumes, buckets last after objects are removed)
+- Resource modules encapsulate AWS interactions, call `get_reporter()` to record events, and honour the `dry_run` flag
 
-**What it does:**
-- Reads `config.yaml` for default settings
-- Overrides with environment variables
-- Validates settings using Pydantic models
-- Provides configuration to all components
+### Orchestrator (`orchestrator.py`)
 
-**Key file:** `conf/config.py`
+- Maintains the `SERVICE_HANDLERS` mapping that links service names to their top-level cleanup functions
+- Builds the worklist by crossing configured regions with allowed services and filtering out unsupported region/service combinations
+- Uses `ThreadPoolExecutor` to run each `(region, service)` pair concurrently, counts successes, skips, and failures, and returns a summary dictionary alongside events captured by the reporter
 
-**Important:** Uses Pydantic's `ConfigDict` for validation. All settings are type-checked.
+### Reporter (`reporter.py`)
 
----
+- Provides a process-wide singleton obtainable via `get_reporter()`
+- Records events with timestamps, ARNs, resource metadata, and dry run status in a thread-safe list
+- Supplies snapshots to the CLI and can flush events to CSV with optional append behaviour
 
-### 2. Service Registry (`services/`)
+### Logger (`logger.py`)
 
-**What it does:**
-- Each AWS service (EC2, S3, Lambda) is a directory
-- Contains subresource handlers (e.g., `ec2/instances.py`, `ec2/volumes.py`)
-- All handlers follow the **three-function pattern** (mandatory)
+- Builds file handlers when logging is enabled in the merged configuration
+- Sets the root log level and quiets chatty third-party loggers such as boto3 and urllib3
 
-**The Three-Function Pattern:**
+### CLI (`cli.py`)
 
-```python
-def catalog_<resource>(session, region, reporter):
-    """List available resources."""
-    # Returns list of resource IDs or names
+- Exposes the Typer command that accepts `--dry-run`, `--no-dry-run`, and `--config`
+- Clears the terminal, prints the banner, and renders a Rich live table while the orchestrator runs
+- Handles keyboard interrupts gracefully and prints a summary along with CSV export information at the end of the run
 
-def cleanup_<resource>(session, region, resource_id, reporter, dry_run):
-    """Delete single resource."""
-    # Handles single resource deletion
+## Execution flow
 
-def cleanup_<resources>(session, region, reporter, dry_run=True):
-    """Batch delete with parallel execution."""
-    # Uses ThreadPoolExecutor for parallel cleanup
-```
+1. `costcutter [--dry-run|--no-dry-run] [--config PATH]` launches the Typer command
+2. The CLI loads the merged configuration and initialises logging
+3. `orchestrate_services` creates a boto3 session using `create_aws_session`
+4. The orchestrator expands the requested regions and services into discrete tasks, filtering out combinations that the AWS SDK reports as unsupported
+5. Worker threads invoke the service cleanup functions; each resource handler records events through the reporter
+6. As events stream in, the CLI updates the live table; once tasks complete it prints a summary table and optionally writes the CSV report
+7. The orchestrator returns a dictionary containing `processed`, `skipped`, `failed`, and `events` so callers can assert on results in tests or automation
 
-**Registration in `__init__.py`:**
+## Concurrency model
 
-```python
-SERVICE_REGISTRY["ec2"] = {
-    "instances": {"catalog": catalog_instances, "cleanup": cleanup_instances},
-    "volumes": {"catalog": catalog_volumes, "cleanup": cleanup_volumes},
-    # ... more subresources
-}
-```
+- Parallelism is achieved at two levels: the orchestrator runs multiple `(region, service)` combinations at once, and individual resource handlers use `ThreadPoolExecutor` when performing per-resource API calls
+- The reporter guards its internal list with a lock; this is the only shared mutable state across threads
+- AWS sessions are thread-safe according to boto3 so handlers reuse the session passed to them
 
-**Execution order matters:** Subresources are executed in the order they appear in `SERVICE_REGISTRY`. For EC2, instances must be deleted before volumes.
+## Error handling
 
----
+- Service handler exceptions propagate through their futures; the orchestrator increments the `failed` counter, logs the stack trace, and continues processing remaining work
+- After all futures settle, the CLI checks for recorded exceptions and re-raises the first one so shell scripts receive a non-zero exit code when a cleanup fails
+- Resource handlers log recoverable AWS errors (such as DryRunOperation) at info level so users know the API call would succeed
 
-### 3. Orchestrator (`orchestrator.py`)
+## Extending the system
 
-**What it does:**
-- Reads configuration and determines which services/regions to process
-- Creates AWS sessions with credentials
-- Spawns worker threads for parallel execution
-- Calls service handlers for each (region, service) pair
-- Aggregates results from all threads
+- Register new services by adding an entry to `SERVICE_HANDLERS` and providing a corresponding `cleanup_<service>` implementation
+- Resource modules should follow the catalog/delete/cleanup trio found in existing EC2 and S3 handlers
+- Update the default configuration and documentation when exposing new services or regions
 
-**Key insight:** Uses `ThreadPoolExecutor` to run multiple services/regions in parallel for speed.
+## Related material
 
----
-
-### 4. Reporter (`reporter.py`)
-
-**What it does:**
-- Thread-safe event tracking (uses locks)
-- Records every cleanup action: service, region, resource type, resource ID, status
-- Provides real-time events to CLI for display
-- Exports all events to CSV report
-
-**Thread safety is critical:** Multiple handlers run in parallel and all record events simultaneously. Reporter uses `threading.Lock()` to prevent race conditions.
-
----
-
-### 5. Logger (`logger.py`)
-
-**What it does:**
-- File-based structured logging to `logs/costcutter.log`
-- Log rotation (10MB max per file, 5 backup files)
-- Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
-- Used by all components for debugging
-
-**Not for events:** Logger is for debugging/diagnostics. Events go through Reporter for user-facing display.
-
----
-
-### 6. CLI (`cli.py`)
-
-**What it does:**
-- Typer-based command-line interface
-- Rich library for live terminal UI with event tables
-- Shows last 10 events in real-time
-- Displays summary statistics
-- Exports CSV report at end
-
----
-
-## Execution Flow
-
-1. **User runs CLI command:**
-   ```bash
-   costcutter destroy --region us-east-1 --service ec2
-   ```
-
-2. **CLI validates arguments** and calls `main.py`
-
-3. **Main entry point:**
-   - Loads configuration from `config.yaml`
-   - Overrides with CLI arguments
-   - Creates AWS session
-   - Calls orchestrator
-
-4. **Orchestrator:**
-   - Resolves which services and regions to process
-   - Spawns worker threads for each (region, service)
-   - Each thread calls the service handler (e.g., `cleanup_ec2()`)
-
-5. **Service handler (e.g., `cleanup_ec2()`):**
-   - Iterates through registered subresources in order
-   - For each subresource:
-     - Calls `catalog_<resource>()` to list resources
-     - Calls `cleanup_<resources>()` to delete in parallel
-   - Each deletion records an event via Reporter
-
-6. **Reporter:**
-   - Collects events from all threads
-   - Provides events to CLI for live display
-   - Exports to CSV at end
-
-7. **CLI displays:**
-   - Live event table (updates in real-time)
-   - Summary statistics (resources deleted, failed, skipped)
-   - CSV export location
-
----
-
-## Key Design Patterns
-
-### Service Auto-Discovery
-
-Services are discovered automatically from `SERVICE_REGISTRY`. No hardcoding in orchestrator.
-
-### Convention Over Configuration
-
-Subresources don't need config entries. If registered in `SERVICE_REGISTRY`, they run when the parent service is enabled.
-
-### Parallel Execution at Two Levels
-
-1. **Service/Region level:** Orchestrator runs multiple (region, service) combinations in parallel
-2. **Resource level:** Each subresource handler uses `ThreadPoolExecutor` to delete multiple resources in parallel
-
-### Thread-Safe Reporter
-
-All handlers call `reporter.record()` from different threads. Reporter uses locks to prevent data corruption.
-
----
-
-## Important Implementation Details
-
-### Execution Order in Services
-
-**EC2 example:** Must delete instances before volumes (volumes are attached to instances).
-
-In `services/ec2/__init__.py`:
-```python
-SERVICE_REGISTRY["ec2"] = {
-    "instances": {...},      # First
-    "volumes": {...},        # Second
-    "snapshots": {...},      # Third
-    # Order matters!
-}
-```
-
-### Dry-Run Mode
-
-All cleanup functions accept `dry_run` parameter:
-- `True` (default): Catalog only, no deletion
-- `False`: Actually delete resources
-
-Reporter marks dry-run events differently for display.
-
-### Error Handling
-
-Handlers should catch exceptions and report failures via Reporter. Orchestrator continues even if one handler fails.
-
----
-
-## Component Dependencies
-
-- **Configuration** → Used by Orchestrator and all handlers
-- **Orchestrator** → Calls Service Handlers
-- **Service Handlers** → Call Resource Handlers, use Reporter and Logger
-- **Resource Handlers** → Use Reporter for events, Logger for debugging
-- **Reporter** → Standalone, thread-safe
-- **Logger** → Standalone, file-based
-- **CLI** → Calls Orchestrator, displays Reporter events
-
----
-
-## Next Steps
-
-- [Code Structure](./code-structure.md) : Detailed file organization
-- [Adding a Service](./adding-service.md) : Create new service handlers
-- [Adding Subresources](./adding-subresources.md) : Add resources to existing services
+- [Code Structure](./code-structure.md) for an overview of repository layout
+- [Adding a Service](./adding-service.md) for step-by-step guidance on new services
+- [Adding Subresources](./adding-subresources.md) when extending an existing service package

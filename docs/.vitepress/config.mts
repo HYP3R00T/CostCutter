@@ -17,17 +17,17 @@ export default defineConfig({
                 items: [
                     { text: "What is CostCutter?", link: "/guide/what-is-costcutter" },
                     { text: "Getting Started (CLI)", link: "/guide/getting-started" },
-                    {
-                        text: "Getting Started (Terraform)",
-                        link: "/guide/getting-started-terraform",
-                    },
+                    // {
+                    //     text: "Getting Started (Terraform)",
+                    //     link: "/guide/getting-started-terraform",
+                    // },
                 ],
             },
             {
                 text: "Usage",
                 items: [
                     { text: "Usage (CLI)", link: "/usage-cli" },
-                    { text: "Usage (Terraform)", link: "/usage-terraform" },
+                    // { text: "Usage (Terraform)", link: "/usage-terraform" },
                 ],
             },
             {

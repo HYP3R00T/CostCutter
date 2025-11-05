@@ -1,259 +1,89 @@
 # Code Structure
 
-How the codebase is organized.
+This guide describes how the repository is organised and where to plug in new code.
 
----
-
-## Directory Layout
+## Directory layout
 
 ```
 CostCutter/
-├── src/costcutter/          # Main application code
-│   ├── __main__.py          # Python module entry point
-│   ├── cli.py               # Command-line interface
-│   ├── main.py              # Application entry point
-│   ├── orchestrator.py      # Multi-region/service coordinator
-│   ├── reporter.py          # Thread-safe event tracking
-│   ├── logger.py            # File-based logging
-│   │
-│   ├── conf/                # Configuration management
-│   │   ├── config.py        # Pydantic models
-│   │   └── config.yaml      # Default settings
-│   │
-│   ├── core/                # Shared utilities
-│   │   └── session_helper.py # AWS session creation
-│   │
-│   └── services/            # AWS service handlers
-│       ├── ec2/             # EC2 subresources
-│       │   ├── __init__.py  # Service registry
-│       │   ├── common.py    # Shared utilities
-│       │   ├── instances.py
-│       │   ├── volumes.py
-│       │   └── ...
-│       │
-│       └── s3/              # S3 subresources
-│           ├── __init__.py
-│           └── buckets.py
-│
-├── tests/                   # Unit tests (mirrors src/)
-│   ├── test_cli.py
-│   ├── test_orchestrator.py
-│   ├── test_ec2_instances.py
-│   ├── test_ec2_volumes.py
-│   └── ...
-│
-├── docs/                    # Documentation
-│   ├── guide/               # User guides
-│   └── contributing/        # Contribution guides
-│
-├── logs/                    # Application logs
-├── pyproject.toml          # Python project config
-├── requirements.txt        # Dependencies
-├── ruff.toml              # Linting config
-└── mise.toml              # Task runner config
+├── src/costcutter/
+│   ├── __init__.py
+│   ├── __main__.py          # Enables `python -m costcutter`
+│   ├── cli.py               # Typer CLI with Rich output
+│   ├── main.py              # Minimal programmatic entry point
+│   ├── orchestrator.py      # Region/service fan-out logic
+│   ├── reporter.py          # Event recording and CSV export
+│   ├── logger.py            # File logging configuration
+│   ├── conf/
+│   │   ├── config.py        # Configuration loader and helpers
+│   │   └── config.yaml      # Bundled defaults
+│   ├── core/
+│   │   └── session_helper.py# AWS session creation helper
+│   └── services/
+│       ├── ec2/             # EC2 resource handlers
+│       └── s3/              # S3 resource handlers
+├── tests/                   # pytest suite mirroring src/
+├── docs/                    # User and contributor docs
+├── pyproject.toml           # Project metadata and dependencies
+├── requirements.txt         # Frozen dependency export (dev included)
+├── ruff.toml                # Lint and format configuration
+└── mise.toml                # Reusable commands (fmt, lint, test)
 ```
 
----
+## Key modules
 
-## File Purposes
+- `cli.py`: wraps orchestration with Typer, renders the live Rich tables, and handles CSV export messaging
+- `main.py`: exposes a `run()` function for programmatic use without the CLI presentation layer
+- `orchestrator.py`: resolves regions and services, drives the worker pool, and returns summary statistics
+- `conf/config.py`: loads the bundled YAML defaults, merges overrides from home files, explicit files, environment variables, and CLI arguments, and exposes a thin `Config` wrapper
+- `reporter.py`: stores events in a thread-safe list, returns snapshots for the UI, and writes CSV files
+- `logger.py`: builds file handlers when logging is enabled and suppresses noisy boto3 logging
+- `core/session_helper.py`: constructs boto3 sessions using explicit credentials, shared credential files, or the default resolver
+- `services/`: contains service-specific cleanup logic (EC2, S3, and any additional handlers you introduce)
 
-### Entry Points
+## Service layout
 
-- **`__main__.py`** : Allows running as `python -m costcutter`
-- **`main.py`** : Core entry point, loads config and starts orchestrator
-- **`cli.py`** : Typer-based CLI, displays UI
+Each service package exports a single `cleanup_<service>` function. For example, `services/ec2/__init__.py` defines `_HANDLERS` and iterates them while invoking resource modules such as `instances.py` and `volumes.py`. Resource modules usually expose three helpers:
 
-### Core Logic
+1. `catalog_<resource>` to enumerate IDs
+2. `cleanup_<resource>` to delete a single item (honouring `dry_run`)
+3. `cleanup_<resources>` to fan out work with `ThreadPoolExecutor`
 
-- **`orchestrator.py`** : Coordinates parallel execution across services/regions
-- **`reporter.py`** : Thread-safe event tracking and CSV export
-- **`logger.py`** : Structured logging to files
+Handlers call `get_reporter()` to record catalog and delete events so the CLI stays in sync.
 
-### Configuration
+To register a new service, add its `cleanup_<service>` function and update the `SERVICE_HANDLERS` mapping inside `orchestrator.py`.
 
-- **`conf/config.py`** : Pydantic models for validation
-- **`conf/config.yaml`** : Default configuration file
+## Naming conventions
 
-### Utilities
+- Files and functions use `snake_case`
+- Classes use `PascalCase`
+- Module-level constants use `ALL_CAPS`
+- Follow PEP 8 import grouping (stdlib, third party, local); ruff enforces this automatically
 
-- **`core/session_helper.py`** : Creates AWS boto3 sessions with credentials
+## Tests
 
-### Services
+Tests live under `tests/` and mirror the structure of `src/`. Common patterns:
 
-Each service directory (`ec2/`, `s3/`, etc.):
-- **`__init__.py`** : Main handler (`cleanup_<service>()`) and `SERVICE_REGISTRY`
-- **`common.py`** (optional) : Shared utilities for that service
-- **`<resource>.py`** : Individual resource handlers
+- Use lightweight `DummySession` classes or monkeypatch boto3 clients to avoid network calls
+- Monkeypatch `get_reporter` when you need deterministic event capture
+- Rely on pytest fixtures for setup and cleanup
 
----
+Example mapping:
 
-## Naming Conventions
-
-### Files
-- `snake_case.py` for all Python files
-- Match resource names (e.g., `elastic_ips.py` not `eips.py`)
-
-### Functions
-- `catalog_<resource>()` : Lists available resources
-- `cleanup_<resource>(resource_id, ...)` : Deletes single resource
-- `cleanup_<resources>()` : Batch deletion with parallelization
-
-### Classes
-- `PascalCase` for all class names
-- Example: `Config`, `Reporter`, `SessionHelper`
-
-### Constants
-- `ALL_CAPS` for module-level constants
-- Example: `SERVICE_REGISTRY`, `DEFAULT_REGION`
-
----
-
-## Import Organization
-
-Standard order (enforced by ruff):
-1. Standard library imports
-2. Third-party imports (boto3, typer, rich, etc.)
-3. Local imports from `costcutter`
-
-Example:
-```python
-import logging
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any
-
-import boto3
-from rich.console import Console
-
-from costcutter.logger import get_logger
-from costcutter.reporter import Reporter
+```
+src/costcutter/services/ec2/instances.py
+tests/test_ec2_instances.py
 ```
 
----
+## Supporting files
 
-## Test Structure
+- `pyproject.toml`: declares dependencies, entry points, and the minimum Python version (3.13)
+- `requirements.txt`: exported lock file that includes development dependencies (pytest, pytest-cov, ruff)
+- `ruff.toml`: central place for lint, formatting, and isort settings
+- `mise.toml`: defines `fmt`, `lint`, and `test` commands for consistent automation
 
-Tests mirror the `src/` structure:
-- `test_<module>.py` for each module
-- Use `DummySession` mock for AWS calls
-- Group related tests in classes (optional)
+## Related reading
 
-Example:
-```
-src/costcutter/services/ec2/volumes.py
-tests/test_ec2_volumes.py
-```
-
----
-
-## Adding New Files
-
-### New Service
-
-1. Create directory: `src/costcutter/services/<service>/`
-2. Add `__init__.py` with `cleanup_<service>()` and registry
-3. Add subresource handlers (e.g., `<resource>.py`)
-4. Create tests: `tests/test_<service>_<resource>.py`
-
-### New Subresource
-
-1. Create file: `src/costcutter/services/<service>/<resource>.py`
-2. Implement three functions (catalog, cleanup single, cleanup batch)
-3. Register in `services/<service>/__init__.py`
-4. Create tests: `tests/test_<service>_<resource>.py`
-
-### New Utility
-
-1. Add to `src/costcutter/core/` if shared across services
-2. Add to `src/costcutter/services/<service>/common.py` if service-specific
-3. Write tests
-
----
-
-## Key Patterns
-
-### Service Registry Pattern
-
-All subresources are registered in `SERVICE_REGISTRY` dict:
-
-```python
-# services/ec2/__init__.py
-from costcutter.services import SERVICE_REGISTRY
-from costcutter.services.ec2.instances import catalog_instances, cleanup_instances
-
-SERVICE_REGISTRY["ec2"] = {
-    "instances": {"catalog": catalog_instances, "cleanup": cleanup_instances},
-}
-```
-
-### Three-Function Pattern
-
-Every subresource handler has exactly three functions:
-
-1. `catalog_<resource>()` : Returns list of resources
-2. `cleanup_<resource>(resource_id, ...)` : Deletes one resource
-3. `cleanup_<resources>()` : Orchestrates parallel deletion
-
-### Reporter Integration
-
-All handlers use Reporter to track events:
-
-```python
-reporter.record(
-    service="ec2",
-    region="us-east-1",
-    resource_type="volume",
-    resource_id="vol-abc123",
-    status="deleted",
-    dry_run=dry_run
-)
-```
-
----
-
-## Dependencies Between Files
-
-- **Orchestrator** depends on:
-  - Configuration (`conf/config.py`)
-  - Session Helper (`core/session_helper.py`)
-  - Service Registry (`services/__init__.py`)
-  - Reporter (`reporter.py`)
-  - Logger (`logger.py`)
-
-- **Service Handlers** depend on:
-  - Reporter (`reporter.py`)
-  - Logger (`logger.py`)
-  - Service-specific utilities (`services/<service>/common.py`)
-
-- **Resource Handlers** depend on:
-  - Reporter (`reporter.py`)
-  - Logger (`logger.py`)
-  - boto3 clients
-
----
-
-## Configuration Files
-
-### `pyproject.toml`
-- Project metadata
-- Python version requirement (3.13+)
-- Entry point: `costcutter = "costcutter.cli:app"`
-
-### `requirements.txt`
-- Runtime dependencies: boto3, typer, rich, pydantic
-
-### `ruff.toml`
-- Linting rules
-- Line length (120 chars)
-- Import sorting
-
-### `mise.toml`
-- Task runner configuration
-- Commands: `mise run lint`, `mise run fmt`, `mise run test`
-
----
-
-## Next Steps
-
-- [Architecture](./architecture.md) : Understand component interactions
-- [Adding a Service](./adding-service.md) : Create new service handlers
-- [Adding Subresources](./adding-subresources.md) : Add resources to services
+- [Architecture](./architecture.md) for a closer look at runtime responsibilities
+- [Adding a Service](./adding-service.md) when you need to register a new AWS service
+- [Adding Subresources](./adding-subresources.md) for guidance on extending an existing service

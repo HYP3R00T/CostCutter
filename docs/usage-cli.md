@@ -1,108 +1,65 @@
-# costcutter CLI Usage Guide
+# CostCutter CLI
 
-This guide explains how to use the costcutter command-line interface (CLI) for AWS resource cleanup, including available flags, config file usage, output interpretation, and troubleshooting.
+This guide explains how to run the CostCutter command line interface, what each option does, and how to interpret the Rich output.
 
-## Running the CLI
+## Running the Command
 
-You can run the CLI using Python:
+- Installed package: `costcutter [OPTIONS]`
+- Module execution: `python -m costcutter.cli [OPTIONS]`
+- Temporary run with uv: `uvx costcutter [OPTIONS]`
 
-```sh
-python -m costcutter.cli [OPTIONS]
-```
+All modes expose the same options.
 
-Or, if installed as a package:
+## Available Options
 
-```sh
-costcutter [OPTIONS]
-```
+| Flag | Description |
+| ---- | ----------- |
+| `--dry-run` | Force dry run mode even if the config disables it. |
+| `--no-dry-run` | Disable dry run for the current invocation. |
+| `--config PATH` | Load an explicit YAML, YML, TOML, or JSON file. |
 
-Or using `uvx`:
+Dry run is enabled by default through `src/costcutter/conf/config.yaml`. Use `--no-dry-run` only when you intend to delete resources.
 
-```sh
-uvx costcutter [OPTIONS]
-```
+## Typical Workflows
 
-## Common Flags and Options
-
-| Flag / Option   | Description                                               |
-| --------------- | --------------------------------------------------------- |
-| `--help`        | Show help message and exit.                               |
-| `--dry-run`     | Simulate actions without making changes to AWS resources. |
-| `--config PATH` | Specify a custom config file path (YAML, TOML, JSON).     |
-
-**Note:** If no config is provided, defaults are used. Dry-run is enabled by default for safety.
-
-## Example Usage
-
-**Show help:**
+### Show help
 
 ```sh
 uvx costcutter --help
 ```
 
-**Run in dry-run mode:**
+### Preview deletions (default)
 
 ```sh
-uvx costcutter --dry-run
+uvx costcutter --dry-run --config ./costcutter.yaml
 ```
 
-**Specify config file:**
+### Execute a cleanup
 
 ```sh
-uvx costcutter --config config.yaml
+uvx costcutter --no-dry-run --config ./costcutter.yaml
 ```
 
-**Run in execute mode:**
+### Use the default config and overrides from the home directory
 
 ```sh
-uvx costcutter --dry-run false --config config.yaml
+costcutter --dry-run
 ```
 
-## Config File Usage
+When `--config` is omitted the loader merges the bundled defaults, any `~/.costcutter.*` file, environment variables with the `COSTCUTTER_` prefix, and the CLI flags shown above.
 
-You can pass a config file to customize regions, services, and reporting. Supported formats: YAML, TOML, JSON.
+## What You Will See
 
-Example:
+- A Rich powered live table that tails the most recent events recorded by the reporter
+- A Rich summary table once orchestration finishes or is interrupted
+- A message pointing to the CSV export if `reporting.csv.enabled` is true in the merged configuration
 
-```sh
-uvx costcutter --config myconfig.yaml
-```
+Logs are written to the directory from `logging.dir` when logging is enabled. The CLI itself does not print raw log records.
 
-## Output Interpretation
+## Troubleshooting Basics
 
-- **Live Event Table:** Shows recent AWS resource events (service, resource, action, region, etc.)
-- **Summary Table:** Aggregated count of actions performed
-- **CSV Export:** If enabled in config, events are saved to CSV after run
+- Invalid file extensions on `--config` raise a Typer validation error before the run starts
+- Keyboard interrupts stop orchestration gracefully and still show a final summary
+- Enable debug logs by setting `logging.level` to `DEBUG` in the config or via `COSTCUTTER_LOGGING__LEVEL=DEBUG`
 
-## Error Handling & Troubleshooting
-
-- Invalid config file extension will raise an error (must be .yaml, .yml, .toml, or .json)
-- All exceptions are logged and reported in the console
-- KeyboardInterrupt (Ctrl+C) will gracefully stop the orchestrator and show a summary
-
-## Advanced Usage
-
-- Use custom config files for different environments
-- Integrate with CI/CD for automated cleanup
-- Review logs for detailed event info (see `logs/` directory)
-
----
-
-For more help, see [Troubleshooting & FAQ](/guide/troubleshooting).
-
-```sh
-python -m costcutter.cli --config /path/to/config.yaml
-```
-
-## Notes
-
-- Only `--dry-run` and `--config` are supported as CLI flags.
-- All other configuration (regions, services, logging, reporting, etc.) must be set in the config file (`src/costcutter/conf/config.yaml`).
-- For a full list of options, run:
-  ```sh
-  python -m costcutter.cli --help
-  ```
-
----
-
-For more details, see the main documentation or source code in `src/costcutter/cli.py`.
+Consult [Troubleshooting](/guide/troubleshooting.md) for deeper diagnostics and escalation paths.

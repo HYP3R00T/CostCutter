@@ -1,44 +1,56 @@
 # Adding Subresources
 
-How to add new resource types to existing AWS services.
+How to add a new resource handler inside an existing service package.
 
----
+## The three-function pattern
 
-## The Three-Function Pattern
-
-Every subresource handler needs exactly three functions:
+Each resource module typically exposes:
 
 ```python
-def catalog_resources(session, region, reporter):
-    """List all resources in the region."""
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Iterable
+
+from boto3.session import Session
+from botocore.exceptions import ClientError
+
+from costcutter.logger import logger
+from costcutter.reporter import get_reporter
+
+
+def catalog_resources(session: Session, region: str) -> list[str]:
     client = session.client("service", region_name=region)
     response = client.describe_resources()
     return [r["Id"] for r in response.get("Resources", [])]
 
-def cleanup_resource(session, region, resource_id, reporter, dry_run):
-    """Delete a single resource."""
+
+def cleanup_resource(session: Session, region: str, resource_id: str, dry_run: bool) -> None:
+    reporter = get_reporter()
     if dry_run:
         reporter.record("service", region, "resource", resource_id, "skipped (dry-run)")
         return
 
     client = session.client("service", region_name=region)
-    client.delete_resource(ResourceId=resource_id)
-    reporter.record("service", region, "resource", resource_id, "deleted")
+    try:
+        client.delete_resource(ResourceId=resource_id)
+        reporter.record("service", region, "resource", resource_id, "deleted")
+    except ClientError as error:
+        logger.error("Failed to delete %s in %s: %s", resource_id, region, error)
+        reporter.record("service", region, "resource", resource_id, "failed")
 
-def cleanup_resources(session, region, reporter, dry_run=True):
-    """Delete all resources in parallel."""
-    resource_ids = catalog_resources(session, region, reporter)
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+def cleanup_resources(session: Session, region: str, dry_run: bool, max_workers: int) -> None:
+    resource_ids = catalog_resources(session=session, region=region)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(cleanup_resource, session, region, rid, reporter, dry_run)
-            for rid in resource_ids
+            executor.submit(cleanup_resource, session, region, resource_id, dry_run)
+            for resource_id in resource_ids
         ]
         for future in as_completed(futures):
-            future.result()  # Raise exceptions if any
+            future.result()
 ```
 
----
+Keep signatures consistent with existing modules so `cleanup_<service>` can pass through `dry_run` and `max_workers` without adaptation.
 
 ## Steps
 
@@ -47,68 +59,53 @@ def cleanup_resources(session, region, reporter, dry_run=True):
 **Location:** `src/costcutter/services/<service>/<resource>.py`
 
 **Example:** `src/costcutter/services/ec2/volumes.py`
+### 2. Implement the functions
 
----
+- Replace `"service"` with the actual service identifier used in reporter logs
+- Replace `describe_resources()` and `delete_resource()` with the correct boto3 calls
+- Adjust the response parsing and pagination for the service-specific API shape
+- Respect dependencies (for example, ensure EC2 volumes are detached before deletion)
 
-### 2. Implement Three Functions
+### 3. Wire the handler into the service package
 
-Copy the pattern above and adjust:
-- Replace `"service"` with actual service name (e.g., `"ec2"`)
-- Replace `describe_resources()` with actual boto3 method (e.g., `describe_volumes()`)
-- Replace `delete_resource()` with actual delete method (e.g., `delete_volume()`)
-- Adjust response parsing based on actual API response structure
-
-**Important:** Handle dependencies! Example: EC2 volumes must be detached before deletion.
-
----
-
-### 3. Register in `__init__.py`
-
-**File:** `src/costcutter/services/<service>/__init__.py`
-
-Add to `SERVICE_REGISTRY`:
+In `src/costcutter/services/<service>/__init__.py`, import the module and delegate from `cleanup_<service>`:
 
 ```python
-from costcutter.services.ec2.volumes import catalog_volumes, cleanup_volumes
+from costcutter.services.<service>.<resource> import cleanup_resources
 
-SERVICE_REGISTRY["ec2"] = {
-    "instances": {...},
-    "volumes": {  # New!
-        "catalog": catalog_volumes,
-        "cleanup": cleanup_volumes,
-    },
-}
+
+def cleanup_<service>(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:
+    cleanup_resources(session=session, region=region, dry_run=dry_run, max_workers=max_workers)
 ```
 
-**Order matters!** Place dependent resources after their dependencies (e.g., volumes after instances).
+Call order inside `cleanup_<service>` should reflect dependencies. For example, delete EC2 instances before their security groups.
 
----
-
+Finally, confirm the service is registered in `SERVICE_HANDLERS` (see [Adding a Service](./adding-service.md)).
 ### 4. Write Tests
 
 **File:** `tests/test_<service>_<resource>.py`
 
 ```python
+from unittest.mock import MagicMock
+
 from costcutter.services.ec2.volumes import catalog_volumes, cleanup_volumes
 
-def test_catalog_volumes():
-    session = DummySession()  # Mock session
-    reporter = Reporter()
 
-    volume_ids = catalog_volumes(session, "us-east-1", reporter)
-    assert isinstance(volume_ids, list)
+def test_catalog_volumes(monkeypatch):
+    session = MagicMock()
+    session.client.return_value.describe_volumes.return_value = {"Volumes": [{"VolumeId": "vol-1"}]}
 
-def test_cleanup_volumes_dry_run():
-    session = DummySession()
-    reporter = Reporter()
+    volume_ids = catalog_volumes(session=session, region="us-east-1")
+    assert volume_ids == ["vol-1"]
 
-    cleanup_volumes(session, "us-east-1", reporter, dry_run=True)
-    events = reporter.get_events()
-    assert all(e["status"] == "skipped (dry-run)" for e in events)
+
+def test_cleanup_volumes_dry_run(monkeypatch):
+    reporter = MagicMock()
+    monkeypatch.setattr("costcutter.services.ec2.volumes.get_reporter", lambda: reporter)
+
+    cleanup_volumes(session=MagicMock(), region="us-east-1", dry_run=True, max_workers=1)
+    reporter.record.assert_called()
 ```
-
----
-
 ### 5. Quality Checks
 
 ```bash
@@ -116,9 +113,6 @@ mise run fmt     # Format code
 mise run lint    # Check linting
 mise run test    # Run tests
 ```
-
----
-
 ## Common Patterns
 
 ### Pagination
@@ -126,11 +120,11 @@ mise run test    # Run tests
 If resources exceed one page:
 
 ```python
-def catalog_resources(session, region, reporter):
+def catalog_resources(session: Session, region: str) -> list[str]:
     client = session.client("service", region_name=region)
     paginator = client.get_paginator("describe_resources")
 
-    resource_ids = []
+    resource_ids: list[str] = []
     for page in paginator.paginate():
         resource_ids.extend([r["Id"] for r in page.get("Resources", [])])
 
@@ -142,9 +136,9 @@ def catalog_resources(session, region, reporter):
 If resource must be detached/stopped first:
 
 ```python
-def cleanup_resource(session, region, resource_id, reporter, dry_run):
+def cleanup_resource(session: Session, region: str, resource_id: str, dry_run: bool) -> None:
     if dry_run:
-        reporter.record(...)
+        get_reporter().record(...)
         return
 
     client = session.client("service", region_name=region)
@@ -154,29 +148,24 @@ def cleanup_resource(session, region, resource_id, reporter, dry_run):
 
     # Then delete
     client.delete_resource(ResourceId=resource_id)
-    reporter.record(...)
+    get_reporter().record(...)
 ```
 
 ### Error Handling
 
 ```python
-def cleanup_resource(session, region, resource_id, reporter, dry_run):
+def cleanup_resource(session: Session, region: str, resource_id: str, dry_run: bool) -> None:
+    reporter = get_reporter()
     try:
         # ... deletion logic
         reporter.record(..., "deleted")
     except ClientError as e:
-        logger.error(f"Failed to delete {resource_id}: {e}")
+        logger.error("Failed to delete %s: %s", resource_id, e)
         reporter.record(..., "failed")
 ```
-
----
-
 ## Example: Adding EC2 Volumes
 
 See `src/costcutter/services/ec2/volumes.py` for a complete real-world example.
-
----
-
 ## Next Steps
 
 - [Architecture](./architecture.md) : Understand execution flow

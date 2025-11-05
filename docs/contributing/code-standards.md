@@ -1,9 +1,6 @@
 # Code Standards
 
 Conventions for contributing code.
-
----
-
 ## Naming
 
 - **Variables/functions:** `snake_case`
@@ -11,9 +8,6 @@ Conventions for contributing code.
 - **Constants:** `ALL_CAPS`
 - **Files:** `snake_case.py`
 - **Private members:** `_prefixed`
-
----
-
 ## Type Hints
 
 **Required** for all functions:
@@ -33,9 +27,6 @@ Use modern syntax:
 - `list[str]` not `List[str]`
 - `dict[str, Any]` not `Dict[str, Any]`
 - `str | None` not `Optional[str]`
-
----
-
 ## Docstrings
 
 **Required** for all public functions (Google style):
@@ -55,27 +46,18 @@ def catalog_volumes(session: Session, region: str, reporter: Reporter) -> list[s
     """
     pass
 ```
-
----
-
 ## Imports
 
 Order (enforced by ruff):
 1. Standard library
 2. Third-party (boto3, typer, rich)
 3. Local (`from costcutter...`)
-
----
-
 ## Error Handling
 
 - Catch specific exceptions: `ClientError`, `ValueError`
 - Never use bare `except:`
 - Log errors: `logger.error(...)`
 - Report failures: `reporter.record(..., status="failed")`
-
----
-
 ## Formatting
 
 ```bash
@@ -85,9 +67,6 @@ mise run fmt
 # Check linting
 mise run lint
 ```
-
----
-
 ## Quality Checks
 
 Before submitting:
@@ -98,9 +77,6 @@ mise run test    # Test
 ```
 
 All must pass.
-
----
-
 ## Next Steps
 
 - [Testing Guide](./testing.md) : Write tests

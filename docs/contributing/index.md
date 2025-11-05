@@ -1,9 +1,6 @@
 # Contributing to CostCutter
 
 Welcome! This guide helps you contribute to CostCutter - whether adding AWS services, fixing bugs, or improving documentation.
-
----
-
 ## Quick Navigation
 
 **Understanding the System:**
@@ -18,27 +15,21 @@ Welcome! This guide helps you contribute to CostCutter - whether adding AWS serv
 - [Testing Guide](./testing.md) : Write and run tests
 - [Code Standards](./code-standards.md) : Naming, types, and conventions
 - [Submission Guidelines](./submission.md) : PR workflow
+## Project at a Glance
 
----
+CostCutter is a Python 3.13 CLI that cleans up cost-prone AWS resources. The repository ships with handlers for EC2 (instances, volumes, snapshots, elastic IPs, key pairs, security groups) and S3 buckets, and the architecture is intentionally designed so additional services can be dropped in with minimal plumbing. Everything runs in dry run mode by default so contributors can iterate safely.
 
-## What is CostCutter?
+**Technology stack:**
+- boto3 for AWS APIs
+- Typer and Rich for the CLI experience
+- pytest and pytest-cov for unit tests
+- ruff for formatting and linting
+- uv or pip for dependency management
 
-An AWS kill-switch that deletes resources across multiple services to prevent runaway costs.
-
-**Tech Stack:**
-- Python 3.13 + boto3 (AWS SDK)
-- Typer + Rich (CLI with live UI)
-- pytest (testing)
-- ruff (linting/formatting)
-
-**Core Principles:**
-- Safety first (dry-run by default)
-- Parallel execution (fast cleanup)
-- Clear reporting (terminal UI + CSV)
-- Easy to extend (simple patterns)
-
----
-
+**Guiding principles:**
+- Default to safety through dry run mode and clear reporting
+- Keep the orchestration model simple and predictable
+- Make extending the service layer straightforward
 ## How to Contribute
 
 1. **Pick your contribution:**
@@ -57,35 +48,36 @@ An AWS kill-switch that deletes resources across multiple services to prevent ru
 
 4. **Submit:**
    - Follow [Submission Guidelines](./submission.md)
-
----
-
 ## Development Setup
 
 ```bash
-# Clone and install
 git clone https://github.com/YOUR_USERNAME/CostCutter.git
 cd CostCutter
+
+# Option A: uv (recommended)
+uv sync --group dev
+
+# Option B: pip
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
-# Verify setup
+# Run the test suite
 mise run test
 ```
 
-**Quality checks before submitting:**
+Quality checks before opening a pull request:
+
 ```bash
-mise run lint    # Check code quality
-mise run fmt     # Format code
-mise run test    # Run tests
+mise run fmt
+mise run lint
+mise run test
 ```
-
----
-
 ## Project Structure
 
 ```
 src/costcutter/
-├── services/        # AWS service handlers (EC2, S3, etc.)
+├── services/        # AWS service handlers (EC2, S3, and new ones you add)
 ├── core/           # Shared utilities (ARN parsing, session)
 ├── conf/           # Configuration management
 ├── orchestrator.py # Parallel execution coordinator
@@ -94,31 +86,25 @@ src/costcutter/
 
 tests/              # Unit tests (mirror src/ structure)
 ```
-
----
-
 ## Key Components
 
 ### Configuration (`conf/`)
-Manages settings from `config.yaml` and environment variables. Uses Pydantic for validation.
+Loads the default YAML file, merges optional overrides, and exposes a lightweight `Config` wrapper for attribute access.
 
 ### Services (`services/`)
-Each AWS service (EC2, S3, etc.) has subresources. All handlers follow the same pattern with three mandatory functions.
+Each service package exposes a `cleanup_<service>` function (for example `cleanup_ec2`) that coordinates its resource modules.
 
 ### Orchestrator (`orchestrator.py`)
-Coordinates parallel cleanup across all enabled services and their subresources.
+Pairs each configured region with each requested service and runs the registered handler in a worker pool.
 
 ### Reporter (`reporter.py`)
-Thread-safe event tracking. Records all cleanup actions and generates CSV reports.
+Records events in a thread-safe list, provides snapshots for the CLI, and writes optional CSV reports.
 
 ### Logger (`logger.py`)
-File-based structured logging with rotation.
+Initialises file-based logging (when enabled) and suppresses noisy third-party loggers.
 
 ### CLI (`cli.py`)
 Typer-based interface with Rich for live progress tables.
-
----
-
 ## Next Steps
 
 Start with [Architecture Overview](./architecture.md) to understand how components work together, then follow [Adding Subresources](./adding-subresources.md) to make your first contribution.

@@ -1,9 +1,6 @@
 # Submission Guidelines
 
 How to submit your contributions.
-
----
-
 ## Quick Steps
 
 1. Fork the repository
@@ -12,9 +9,6 @@ How to submit your contributions.
 4. Run quality checks: `mise run fmt`, `mise run lint`, `mise run test`
 5. Commit with conventional format: `feat(lambda): add function cleanup`
 6. Push and create pull request
-
----
-
 ## Branch Naming
 
 Format: `<type>-<description>`
@@ -30,9 +24,6 @@ Examples:
 - `feat-add-lambda-support`
 - `fix-volume-deletion-error`
 - `docs-update-testing-guide`
-
----
-
 ## Commit Format
 
 Use Conventional Commits:
@@ -62,9 +53,6 @@ git commit -m "fix(s3): handle versioned bucket deletion
 
 Fixes #56"
 ```
-
----
-
 ## Pull Request
 
 **Title:** Same format as commit message
@@ -74,18 +62,12 @@ Fixes #56"
 - Why you changed it
 - How to test it
 - Related issues (Fixes #123)
-
----
-
 ## Review Process
 
 1. Automated checks run (tests, linting)
 2. Maintainer reviews code
 3. Address feedback if requested
 4. PR merged once approved
-
----
-
 ## After Merge
 
 Update your fork:
@@ -100,17 +82,11 @@ Delete feature branch:
 git branch -d feat-add-lambda
 git push origin --delete feat-add-lambda
 ```
-
----
-
 ## Getting Help
 
 - GitHub Issues for bugs
 - GitHub Discussions for questions
 - PR comments for review feedback
-
----
-
 ## Next Steps
 
 - [Adding a Service](./adding-service.md) : Create service handler
