@@ -1,40 +1,55 @@
 # Getting Started (Terraform)
 
-This guide will help you deploy CostCutter using the Terraform solution for automated AWS cost control.
+There is no Terraform module packaged with CostCutter today. Instead, you can call the CLI from Terraform to run a cleanup as part of a workflow. This guide walks through a minimal setup.
 
 ## Prerequisites
 
-- AWS account with permissions for Budget, SNS, Lambda, IAM
-- Terraform installed ([Download](https://www.terraform.io/downloads.html))
-- Git installed
+- Terraform 1.6 or newer installed locally
+- Access to AWS credentials compatible with the CostCutter CLI
+- A CostCutter configuration file committed alongside your Terraform code
 
-## Steps
+## 1. Prepare the configuration file
 
-1. **Clone the Terraform repository:**
-   ```sh
-   git clone https://github.com/HYP3R00T/aws-costcutter.git
-   cd aws-costcutter
-   ```
-2. **Edit the configuration file:**
-   - Open `lambda/config.yaml` and adjust settings for your environment (regions, budget thresholds, notification emails, etc).
-3. **Initialize Terraform:**
-   ```sh
-   terraform init
-   ```
-4. **Apply the infrastructure:**
-   ```sh
-   terraform apply
-   ```
-   - Review the plan and confirm to proceed.
-5. **What gets created?**
-   - AWS Budget with alert
-   - SNS topic for notifications
-   - Lambda function for automated actions
-   - IAM roles and permissions
+Copy the YAML snippet from [Getting Started](/guide/getting-started.md) into your Terraform module directory (for example `config/costcutter.yaml`). Ensure the regions and services match the AWS account you plan to clean up.
 
-## Next Steps
+## 2. Install the CLI in your automation environment
 
-- Monitor your AWS account for alerts and automated actions
-- Update config and re-apply as needed
+The machine that runs `terraform apply` must also have the `costcutter` command available. Using uv:
 
-For advanced usage, see the [Usage (Terraform)](/usage-terraform) page.
+```sh
+uv tool install costcutter
+```
+
+Include this step in your CI setup script if you run Terraform from a pipeline.
+
+## 3. Wire CostCutter into Terraform
+
+Add a `null_resource` with a `local-exec` provisioner to call the CLI:
+
+```hcl
+resource "null_resource" "costcutter_cleanup" {
+  provisioner "local-exec" {
+    command = "uvx costcutter --dry-run --config ${path.module}/config/costcutter.yaml"
+  }
+}
+```
+
+Tips:
+
+- Keep the command in dry run mode until you review the output
+- Inject overrides with environment variables if you need per-environment tweaks (example: `COSTCUTTER_AWS__PROFILE`)
+- Use Terraform variables to control whether the provisioner runs during a particular apply
+
+## 4. Promote to destructive mode
+
+After validating the dry run output, change the command to use `--no-dry-run`. You may also want to add safeguards such as confirmation variables or pipeline approvals.
+
+## 5. Observe the run
+
+Terraform will stream the Rich output into its own logs. Capture the output for audit purposes and collect the CSV report from the path defined in your configuration.
+
+## Troubleshooting
+
+- If the provisioner fails, re-run the same command outside Terraform to inspect the error directly
+- Verify that the AWS credentials visible to Terraform also allow the CostCutter CLI to list and delete resources
+- Review [Usage (Terraform)](/usage-terraform.md) and [Troubleshooting](/guide/troubleshooting.md) for additional integration pointers

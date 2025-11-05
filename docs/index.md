@@ -11,8 +11,8 @@ hero:
       text: What is CostCutter?
       link: /guide/what-is-costcutter
     - theme: alt
-      text: Quickstart
-      link: /guide/getting-started
+      text: Configure It
+      link: /guide/config-reference
     - theme: alt
       text: GitHub
       link: https://github.com/HYP3R00T/costcutter
@@ -22,12 +22,12 @@ features:
     title: Fast AWS Resource Cleanup
     details: Scan and clean up EC2 instances, Lambda functions, and more with a single command. Supports dry-run mode for safe testing.
   - icon: 🛠️
-    title: Configurable & Extensible
-    details: Control regions, services, logging, and reporting via YAML config. Easily extend to new AWS services.
+    title: Layered Configuration
+    details: Merge defaults, home overrides, explicit files, environment variables, and CLI flags without boilerplate.
   - icon: 📊
-    title: Live Event Reporting
-    details: Real-time event table and summary with Rich UI. Export results to CSV for auditing and compliance.
+    title: Live Terminal View
+    details: Watch events stream in through a Rich powered table and review a summary once orchestration completes.
   - icon: 🔒
-    title: Secure Credential Handling
-    details: Supports AWS profiles, environment variables, and credential files. No secrets stored in code.
+    title: Credential Flexibility
+    details: Reuse profiles, shared credential files, or explicit keys while keeping secrets out of the repository.
 ---

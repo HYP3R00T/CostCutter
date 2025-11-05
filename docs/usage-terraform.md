@@ -1,28 +1,47 @@
 # Usage (Terraform)
 
-How to operate and manage CostCutter after deploying with Terraform.
+CostCutter ships as a Python package and does not include a Terraform module. You can still orchestrate cleanups from Terraform by invoking the CLI from Terraform resources.
 
-## Editing Configuration
+## Current Status
 
-- Update `lambda/config.yaml` to change budget thresholds, regions, or notification settings
-- Run `terraform apply` again to update AWS resources
+- No managed Terraform module or Lambda deployment is bundled with this repository
+- All automation relies on the same CLI options documented in [CostCutter CLI](/usage-cli.md)
 
-## Monitoring
+## Triggering the CLI from Terraform
 
-- AWS Budget alerts trigger notifications via SNS
-- Lambda executes automated cleanup or notifications as configured
-- Check Lambda logs in AWS Console > Lambda > Monitor > Logs
+### Example `null_resource`
 
-## Common Operations
+```hcl
+resource "null_resource" "costcutter_cleanup" {
+	provisioner "local-exec" {
+		command = "uvx costcutter --no-dry-run --config ${path.module}/costcutter.yaml"
+		environment = {
+			COSTCUTTER_LOGGING__LEVEL = "INFO"
+		}
+	}
+}
+```
 
-- **Change budget threshold:** Edit config and re-apply
-- **Add/remove regions:** Update config and re-apply
-- **Update notification emails:** Edit config and re-apply
+Key points:
 
-## Troubleshooting
+- Package installation is your responsibility (for example via `uv tool install costcutter` or a virtual environment)
+- Provide an explicit config file that lives alongside your Terraform code
+- Use `--dry-run` while validating infrastructure changes and switch to `--no-dry-run` only when you intend to delete resources
 
-- Ensure IAM permissions are correct for Terraform and Lambda
-- Check Terraform output for errors
-- Review Lambda logs for execution issues
+## Managing Configuration Files
 
-For more details, see [Troubleshooting & FAQ](/guide/troubleshooting).
+- Commit a baseline YAML, TOML, or JSON file to your Terraform module
+- Populate secrets or overrides with Terraform variables and render them using the [`templatefile`](https://developer.hashicorp.com/terraform/language/functions/templatefile) function when required
+- Keep the file path stable so the CLI can be invoked in plan and apply stages consistently
+
+## Monitoring and Logs
+
+- CLI executions write logs to the directory configured in `logging.dir`
+- Rich output appears in the Terraform apply log; capture it for later review if you use automation
+- CSV exports are saved to the path configured under `reporting.csv.path`
+
+## Troubleshooting Terraform Automations
+
+- Ensure the environment running Terraform has AWS credentials usable by CostCutter
+- Surface CLI failures by checking Terraform provisioner exit codes and logs
+- Run the same command locally to reproduce issues, then consult [Troubleshooting](/guide/troubleshooting.md) for deeper diagnostics

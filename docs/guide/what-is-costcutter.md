@@ -1,25 +1,27 @@
 # What is CostCutter?
 
 > [!DANGER]
-> CostCutter will delete **all resources** in your AWS account, across all configured regions and services, with no discrimination or recovery. Never use it on production.
+> CostCutter deletes resources. Always start with a dry run and restrict usage to disposable AWS accounts.
 
-CostCutter is a powerful AWS cleanup tool designed for aggressive resource deletion. It does **not** monitor usage or costs. When you run CostCutter, it will immediately delete all resources specified in your config file, across all listed regions and services. There is no undo.
+CostCutter is a Python-based CLI for reclaiming AWS spend quickly. It enumerates the services you enable, records what it finds in a Rich-powered table, and deletes every matching resource when you opt out of dry run mode.
 
-You can use CostCutter in two main ways:
+## Why people use it
 
-- **CLI Mode:** Run `uvx costcutter` to instantly delete resources as configured.
-- **Terraform/Lambda Mode:** Integrate with AWS SNS and Lambda. When an alert triggers (e.g., via AWS Budgets), CostCutter runs automatically and deletes everything as specified.
+- 🚀 **Students and tinkerers** who want a clean slate after labs or experiments
+- 💼 **Consultants and freelancers** who reset test environments between engagements
+- 🌱 **Startups** protecting free-tier budgets by purging unused infrastructure
+- 🧪 **Engineering teams** who need a repeatable teardown tool for pre-production accounts
 
-CostCutter is ideal for:
+## How it runs
 
-- 🚀 **Students** and experimenters who want a clean slate
-- 💼 **Freelancers** who need to wipe test environments
-- 🧪 **Homelabbers** and tinkerers
-- 🌱 **Startups** building proofs-of-concept
-- 🆓 **Free Tier Users** who want to avoid accidental charges
+- **One CLI:** invoke `costcutter` (or `uvx costcutter`) from your shell or automation.
+- **Layered configuration:** defaults, home overrides, explicit files, environment variables, and CLI flags merge into a single runtime config.
+- **Threaded orchestration:** `(region, service)` pairs fan out in a thread pool so large accounts finish faster.
 
-**Warning:** CostCutter is a destructive tool. It does not discriminate between critical and non-critical resources. Use only in non-production accounts where you are certain you want everything deleted.
+## Safety model
 
----
+- Dry run is enabled by default. Handlers either set `DryRun=True` on AWS APIs or short-circuit before deletion.
+- Verbose reporting streams to the terminal and can optionally be written to CSV for auditing.
+- Disabling dry run (`--no-dry-run`) irrevocably deletes the resources targeted by the handlers. There is no undo.
 
-CostCutter: The AWS kill-switch. When you need everything gone, instantly.
+Ready to try it? Continue with the [Getting Started](./getting-started.md) guide and review [Supported Services & Resources](./supported-services.md) for the latest coverage.
