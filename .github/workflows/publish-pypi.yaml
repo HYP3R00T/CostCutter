@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "v*"   # run only when pushing tags like v1.0.0, v2.3.1, etc.
+      - "v*" # run only when pushing tags like v1.0.0, v2.3.1, etc.
 
 jobs:
   release:
