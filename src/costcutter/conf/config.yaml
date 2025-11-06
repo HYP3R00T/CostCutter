@@ -21,5 +21,6 @@ aws:
   services:
     # - all # to scan for all services (WIP)
     - ec2
+    - elasticbeanstalk
     - s3
     # - lambda
