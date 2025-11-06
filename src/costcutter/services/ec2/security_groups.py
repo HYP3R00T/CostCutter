@@ -5,7 +5,7 @@ from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from costcutter.reporter import get_reporter
-from costcutter.services.ec2.common import _get_account_id
+from costcutter.services.common import _get_account_id
 
 SERVICE: str = "ec2"
 RESOURCE: str = "security_group"
@@ -24,8 +24,9 @@ def catalog_security_groups(session: Session, region: str) -> list[str]:
             group_id = security_group.get("GroupId")
             if group_id:
                 security_group_ids.append(group_id)
+        logger.info("[%s][ec2][security_group] Found %d security groups", region, len(security_group_ids))
     except ClientError as e:
-        logger.error("[%s][ec2] Failed to describe security groups: %s", region, e)
+        logger.error("[%s][ec2][security_group] Failed to describe security groups: %s", region, e)
         security_group_ids = []
     return security_group_ids
 

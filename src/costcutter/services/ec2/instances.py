@@ -6,7 +6,7 @@ from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from costcutter.reporter import get_reporter
-from costcutter.services.ec2.common import _get_account_id
+from costcutter.services.common import _get_account_id
 
 SERVICE: str = "ec2"
 RESOURCE: str = "instance"
@@ -20,8 +20,9 @@ def catalog_instances(session: Session, region: str) -> list[str]:
     try:
         reservations = client.describe_instances().get("Reservations", [])
         arns = [i.get("InstanceId") for r in reservations for i in r.get("Instances", [])]
+        logger.info("[%s][ec2][instance] Found %d instances", region, len(arns))
     except ClientError as e:
-        logger.error("[%s][ec2] Failed to describe instances: %s", region, e)
+        logger.error("[%s][ec2][instance] Failed to describe instances: %s", region, e)
         arns = []
     return arns
 

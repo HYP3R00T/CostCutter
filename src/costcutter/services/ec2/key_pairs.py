@@ -5,7 +5,7 @@ from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from costcutter.reporter import get_reporter
-from costcutter.services.ec2.common import _get_account_id
+from costcutter.services.common import _get_account_id
 
 SERVICE: str = "ec2"
 RESOURCE: str = "key_pair"
@@ -19,8 +19,9 @@ def catalog_key_pairs(session: Session, region: str) -> list[str]:
     try:
         keypairs = client.describe_key_pairs().get("KeyPairs", [])
         arns.extend([k.get("KeyPairId") for k in keypairs])
+        logger.info("[%s][ec2][key_pair] Found %d key pairs", region, len(arns))
     except ClientError as e:
-        logger.error("[%s][ec2] Failed to describe key pairs: %s", region, e)
+        logger.error("[%s][ec2][key_pair] Failed to describe key pairs: %s", region, e)
         arns = []
     return arns
 
