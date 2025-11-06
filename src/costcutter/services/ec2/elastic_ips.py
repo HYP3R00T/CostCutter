@@ -8,7 +8,7 @@ from boto3.session import Session
 from botocore.exceptions import ClientError
 
 from costcutter.reporter import get_reporter
-from costcutter.services.ec2.common import _get_account_id
+from costcutter.services.common import _get_account_id
 
 SERVICE: str = "ec2"
 RESOURCE: str = "elastic_ip"
@@ -110,12 +110,29 @@ def cleanup_elastic_ip(session: Session, region: str, eip_info: dict[str, Any], 
             logger.info(
                 "[%s][ec2][elastic_ip] Released allocation_id=%s public_ip=%s", region, allocation_id, public_ip
             )
+            # Update reporter with success status
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "released", "dry_run": False, "public_ip": public_ip},
+            )
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code") if hasattr(e, "response") else None
         if dry_run and code == "DryRunOperation":
             logger.info("[%s][ec2][elastic_ip] dry-run release would succeed allocation_id=%s", region, allocation_id)
         else:
             logger.error("[%s][ec2][elastic_ip] release failed allocation_id=%s error=%s", region, allocation_id, e)
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "failed", "dry_run": dry_run, "error": str(e), "public_ip": public_ip},
+            )
 
 
 def cleanup_elastic_ips(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:

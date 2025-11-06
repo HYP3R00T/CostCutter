@@ -12,6 +12,7 @@ from costcutter.reporter import get_reporter
 
 # Reporter no longer needed at service-level (resource handlers still record events)
 from costcutter.services.ec2 import cleanup_ec2
+from costcutter.services.elasticbeanstalk import cleanup_elasticbeanstalk
 from costcutter.services.s3 import cleanup_s3
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 SERVICE_HANDLERS = {
     # Each value can be a functional entrypoint `run(session, region, dry_run, reporter)`
     "ec2": cleanup_ec2,
+    "elasticbeanstalk": cleanup_elasticbeanstalk,
     "s3": cleanup_s3,
     # "lambda": cleanup_lambda,
 }

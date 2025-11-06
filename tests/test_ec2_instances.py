@@ -28,7 +28,9 @@ class DummySession:
 
 def test_get_account_id():
     session = DummySession()
-    assert instances._get_account_id(session) == "123456789012"
+    from costcutter.services.common import _get_account_id
+
+    assert _get_account_id(session) == "123456789012"
 
 
 def test_catalog_instances():
