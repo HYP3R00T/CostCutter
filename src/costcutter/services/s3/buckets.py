@@ -216,13 +216,14 @@ def cleanup_bucket(session: Session, region: str, bucket_name: str, dry_run: boo
         # Finally delete the bucket
         client.delete_bucket(Bucket=bucket_name)
         logger.info("[%s][s3][bucket] delete requested bucket=%s", region, bucket_name)
+        # Update reporter with success status
         reporter.record(
             region,
             SERVICE,
             RESOURCE,
             "delete",
             arn=arn,
-            meta={"status": "executing", "dry_run": dry_run},
+            meta={"status": "deleted", "dry_run": False},
         )
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code") if hasattr(e, "response") else None
@@ -230,6 +231,14 @@ def cleanup_bucket(session: Session, region: str, bucket_name: str, dry_run: boo
             logger.info("[%s][s3][bucket] dry-run delete would succeed bucket_name=%s", region, bucket_name)
         else:
             logger.error("[%s][s3][bucket] delete failed bucket_name=%s error=%s", region, bucket_name, e)
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "failed", "dry_run": False, "error": str(e)},
+            )
 
 
 def cleanup_buckets(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:

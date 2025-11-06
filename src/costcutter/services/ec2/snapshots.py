@@ -70,12 +70,29 @@ def cleanup_snapshot(session: Session, region: str, snapshot_id: Any, dry_run: b
         client.delete_snapshot(SnapshotId=snapshot_id, DryRun=dry_run)
         if not dry_run:
             logger.info("[%s][ec2][snapshot] Deleted snapshot_id=%s", region, snapshot_id)
+            # Update reporter with success status
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "deleted", "dry_run": False},
+            )
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code") if hasattr(e, "response") else None
         if dry_run and code == "DryRunOperation":
             logger.info("[%s][ec2][snapshot] dry-run delete would succeed snapshot_id=%s", region, snapshot_id)
         else:
             logger.error("[%s][ec2][snapshot] delete failed snapshot_id=%s error=%s", region, snapshot_id, e)
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "failed", "dry_run": dry_run, "error": str(e)},
+            )
 
 
 def cleanup_snapshots(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:

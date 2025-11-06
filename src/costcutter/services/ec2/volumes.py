@@ -69,12 +69,29 @@ def cleanup_volume(session: Session, region: str, volume_id: Any, dry_run: bool 
         client.delete_volume(VolumeId=volume_id, DryRun=dry_run)
         if not dry_run:
             logger.info("[%s][ec2][volume] Deleted volume_id=%s", region, volume_id)
+            # Update reporter with success status
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "deleted", "dry_run": False},
+            )
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code") if hasattr(e, "response") else None
         if dry_run and code == "DryRunOperation":
             logger.info("[%s][ec2][volume] dry-run delete would succeed volume_id=%s", region, volume_id)
         else:
             logger.error("[%s][ec2][volume] delete failed volume_id=%s error=%s", region, volume_id, e)
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "failed", "dry_run": dry_run, "error": str(e)},
+            )
 
 
 def cleanup_volumes(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:

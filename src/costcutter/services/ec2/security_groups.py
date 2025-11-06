@@ -54,6 +54,16 @@ def cleanup_security_group(session: Session, region: str, security_group_id: str
             security_group_id,
             dry_run,
         )
+        if not dry_run:
+            # Update reporter with success status
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "deleted", "dry_run": False},
+            )
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code") if hasattr(e, "response") else None
         if dry_run and code == "DryRunOperation":
@@ -68,6 +78,14 @@ def cleanup_security_group(session: Session, region: str, security_group_id: str
                 region,
                 security_group_id,
                 e,
+            )
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "failed", "dry_run": dry_run, "error": str(e)},
             )
 
 

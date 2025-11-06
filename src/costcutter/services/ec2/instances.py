@@ -62,12 +62,30 @@ def cleanup_instance(session: Session, region: str, instance_id: Any, dry_run: b
                 cur,
                 dry_run,
             )
+        if not dry_run:
+            # Update reporter with success status
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "terminated", "dry_run": False},
+            )
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code") if hasattr(e, "response") else None
         if dry_run and code == "DryRunOperation":
             logger.info("[%s][ec2][instance] dry-run terminate would succeed instance_id=%s", region, instance_id)
         else:
             logger.error("[%s][ec2][instance] terminate failed instance_id=%s error=%s", region, instance_id, e)
+            reporter.record(
+                region,
+                SERVICE,
+                RESOURCE,
+                "delete",
+                arn=arn,
+                meta={"status": "failed", "dry_run": dry_run, "error": str(e)},
+            )
 
 
 def cleanup_instances(session: Session, region: str, dry_run: bool = True, max_workers: int = 1) -> None:
