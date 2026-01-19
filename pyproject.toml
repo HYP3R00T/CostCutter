@@ -9,9 +9,10 @@ requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.40.1",
     "pyfiglet>=1.0.3",
-    "pyyaml>=6.0.2",
+    "pydantic>=2.0.0",
     "rich>=14.1.0",
     "typer>=0.16.0",
+    "utilityhub-config>=0.1.1",
 ]
 keywords = [
     "aws",

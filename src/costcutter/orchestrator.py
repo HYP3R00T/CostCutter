@@ -5,8 +5,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from boto3.session import Session
+from pydantic import BaseModel
 
-from costcutter.conf.config import get_config
+from costcutter.conf.config import load_config
 from costcutter.core.session_helper import create_aws_session
 from costcutter.reporter import get_reporter
 
@@ -16,6 +17,16 @@ from costcutter.services.elasticbeanstalk import cleanup_elasticbeanstalk
 from costcutter.services.s3 import cleanup_s3
 
 logger = logging.getLogger(__name__)
+
+
+def _get_config_value(obj: BaseModel | dict[str, Any] | Any, key: str, default: Any = None) -> Any:
+    """Get a value from BaseModel, dict, or object with attribute access."""
+    if isinstance(obj, BaseModel):
+        return getattr(obj, key, default)
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
 
 SERVICE_HANDLERS = {
     # Each value can be a functional entrypoint `run(session, region, dry_run, reporter)`
@@ -60,10 +71,10 @@ def process_region_service(
 def orchestrate_services(
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    config = get_config()
+    config = load_config()
 
     # Resolve services
-    selected_services_raw = list(getattr(config.aws, "services", []) or [])
+    selected_services_raw = list(_get_config_value(config.aws, "services", []) or [])
     if not selected_services_raw:
         raise ValueError("No services configured under aws.services")
     if any(s.lower() == "all" for s in selected_services_raw):
@@ -81,7 +92,7 @@ def orchestrate_services(
     session = create_aws_session(config)
 
     # Resolve regions
-    regions_raw = list(getattr(config.aws, "region", []) or [])
+    regions_raw = list(_get_config_value(config.aws, "region", []) or [])
     if not regions_raw:
         raise ValueError("No regions configured under aws.region")
 

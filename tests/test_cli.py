@@ -118,7 +118,7 @@ def test_run_cli_writes_csv_and_handles_figlet_and_clear(monkeypatch, tmp_path):
 
     monkeypatch.setattr("costcutter.cli.get_reporter", lambda: R())
     monkeypatch.setattr("costcutter.cli.orchestrate_services", lambda dry_run: None)
-    monkeypatch.setattr("costcutter.cli.get_config", lambda cli_args, config_file=None: cfg)
+    monkeypatch.setattr("costcutter.cli.load_config", lambda overrides=None: cfg)
     # Make Figlet throw so fig_rendered becomes None branch
     monkeypatch.setattr("costcutter.cli.Figlet", lambda font=None: (_ for _ in ()).throw(Exception("fig")))
 
@@ -141,7 +141,7 @@ def test_run_cli_raises_orchestrator_exception(monkeypatch):
     monkeypatch.setattr("costcutter.cli.orchestrate_services", _bad_orch)
     # minimal config
     monkeypatch.setattr(
-        "costcutter.cli.get_config", lambda cli_args, config_file=None: SimpleNamespace(reporting=None, dry_run=True)
+        "costcutter.cli.load_config", lambda overrides=None: SimpleNamespace(reporting=None, dry_run=True)
     )
 
     import pytest
