@@ -24,7 +24,7 @@ def test_process_region_service(monkeypatch):
 
 def test_orchestrate_services(monkeypatch):
     monkeypatch.setattr(
-        "costcutter.orchestrator.get_config",
+        "costcutter.orchestrator.load_config",
         lambda: type(
             "Cfg", (), {"aws": type("AWS", (), {"services": ["ec2"], "region": ["us-east-1"], "max_workers": 1})()}
         )(),
@@ -64,7 +64,7 @@ def test_process_region_service_handler_raises(monkeypatch):
 def test_orchestrate_services_no_services_configured(monkeypatch):
     # No services configured should raise
     monkeypatch.setattr(
-        "costcutter.orchestrator.get_config",
+        "costcutter.orchestrator.load_config",
         lambda: type("Cfg", (), {"aws": type("AWS", (), {"services": [], "region": ["us-east-1"]})()})(),
     )
     with pytest.raises(ValueError):
@@ -74,7 +74,7 @@ def test_orchestrate_services_no_services_configured(monkeypatch):
 def test_orchestrate_services_invalid_services(monkeypatch):
     # Config services contain an invalid service -> ValueError
     monkeypatch.setattr(
-        "costcutter.orchestrator.get_config",
+        "costcutter.orchestrator.load_config",
         lambda: type("Cfg", (), {"aws": type("AWS", (), {"services": ["invalidsvc"], "region": ["us-east-1"]})()})(),
     )
     with pytest.raises(ValueError):
@@ -84,7 +84,7 @@ def test_orchestrate_services_invalid_services(monkeypatch):
 def test_orchestrate_services_regions_all_union_empty(monkeypatch):
     # If aws.region == ['all'] but AWS session cannot resolve any regions, orchestrate should raise
     monkeypatch.setattr(
-        "costcutter.orchestrator.get_config",
+        "costcutter.orchestrator.load_config",
         lambda: type("Cfg", (), {"aws": type("AWS", (), {"services": ["ec2"], "region": ["all"]})()})(),
     )
     # create_aws_session returns a session whose get_available_regions returns empty list
@@ -99,7 +99,7 @@ def test_orchestrate_services_regions_all_union_empty(monkeypatch):
 def test_orchestrate_services_skipped_and_processed_counts(monkeypatch):
     # Services configured with one region available -> one processed, one skipped
     monkeypatch.setattr(
-        "costcutter.orchestrator.get_config",
+        "costcutter.orchestrator.load_config",
         lambda: type(
             "Cfg",
             (),

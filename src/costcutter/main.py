@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from costcutter.conf.config import get_config
+from costcutter.conf.config import load_config
 from costcutter.logger import setup_logging
 from costcutter.orchestrator import orchestrate_services
 
@@ -23,7 +23,7 @@ def run(dry_run: bool | None = None) -> dict[str, Any]:
         A summary dict with counters for the run.
     """
     # Load configuration and initialize logging first
-    config = get_config()
+    config = load_config()
     setup_logging(config)
 
     # Resolve effective flags (config > defaults, with optional override)

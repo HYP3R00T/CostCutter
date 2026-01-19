@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from costcutter.conf.config import get_config
+from costcutter.conf.config import load_config
 from costcutter.logger import setup_logging
 from costcutter.orchestrator import orchestrate_services
 from costcutter.reporter import get_reporter
@@ -105,7 +105,7 @@ def run_cli(dry_run: bool | None = None, config_file: Path | None = None) -> Non
     The CLI now always shows the Rich live progress UI; simplified per design change.
     """
     overrides = {"dry_run": dry_run}
-    config = get_config(cli_args=overrides, config_file=config_file)
+    config = load_config(overrides=overrides)
     setup_logging(config)
 
     dry_run_eff = dry_run if dry_run is not None else getattr(config, "dry_run", True)
