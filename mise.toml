@@ -14,7 +14,7 @@ python.uv_venv_auto = true
 idiomatic_version_file_enable_tools = ["python"]
 
 [hooks]
-enter = "bash ./scripts/setup_project.sh"
+enter = "bash ./scripts/enter_project.sh"
 
 [env]
 UV_LINK_MODE = "copy"
