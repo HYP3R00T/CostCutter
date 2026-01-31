@@ -6,7 +6,7 @@ Complete guide to configuring CostCutter.
 
 CostCutter merges configuration from multiple sources in this order (later sources override earlier ones):
 
-1. **Default Config** - Built-in defaults (`src/costcutter/conf/config.yaml`)
+1. **Default Config** - Built-in defaults (defined in `src/costcutter/config.py`)
 2. **Home Config** - User's home directory (`~/.costcutter.{yaml,yml,toml,json}`)
 3. **Explicit File** - File specified via `--config` flag or `config_file` parameter
 4. **Environment Variables** - Shell environment variables with `COSTCUTTER_` prefix
@@ -18,7 +18,7 @@ CostCutter merges configuration from multiple sources in this order (later sourc
 
 ### Method 1: Default Configuration (Built-in)
 
-Located at `src/costcutter/conf/config.yaml`. Used automatically if no other config is provided.
+Defined in `src/costcutter/config.py`. Used automatically if no other config is provided.
 
 **Default Configuration:**
 
@@ -114,9 +114,9 @@ costcutter --config /path/to/myconfig.yaml
 
 ```python
 from pathlib import Path
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 
-config = get_config(config_file=Path("/path/to/myconfig.yaml"))
+config = load_config()
 ```
 
 **Supported formats:** `.yaml`, `.yml`, `.toml`, `.json`
@@ -177,12 +177,12 @@ export COSTCUTTER_AWS__SERVICES="[ec2, s3]"  # List
 
 ```python
 import os
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 
 os.environ["COSTCUTTER_DRY_RUN"] = "false"
 os.environ["COSTCUTTER_AWS__REGION"] = "[us-east-1]"
 
-config = get_config()
+config = load_config()
 ```
 
 **Priority:** Overrides defaults, home config, and explicit files. Only CLI arguments have higher priority.
@@ -207,7 +207,7 @@ costcutter --config myconfig.yaml --dry-run
 **Python API:**
 
 ```python
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 
 cli_overrides = {
     "dry_run": False,
@@ -216,7 +216,7 @@ cli_overrides = {
     }
 }
 
-config = get_config(cli_args=cli_overrides)
+config = load_config(overrides=cli_overrides)
 ```
 
 **Priority:** Highest priority. Overrides all other sources.
@@ -228,11 +228,11 @@ Import and configure programmatically:
 ### Basic Usage
 
 ```python
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 from costcutter.orchestrator import orchestrate_services
 
 # Load default config
-config = get_config()
+config = load_config()
 
 # Run cleanup
 orchestrate_services(dry_run=True)
@@ -241,53 +241,42 @@ orchestrate_services(dry_run=True)
 ### Custom Configuration
 
 ```python
-from pathlib import Path
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 
-# Method 1: Use config file
-config = get_config(config_file=Path("./myconfig.yaml"))
+# Method 1: Load with defaults (auto-discovers config files)
+config = load_config()
 
-# Method 2: Override via CLI args
-config = get_config(cli_args={
+# Method 2: Override via runtime parameters
+config = load_config(overrides={
     "dry_run": False,
     "aws": {
         "region": ["us-west-2"],
         "services": ["ec2", "s3"]
     }
 })
-
-# Method 3: Combine both
-config = get_config(
-    config_file=Path("./base.yaml"),
-    cli_args={"dry_run": False}
-)
 ```
 
 ### Reload Configuration
 
 ```python
-from costcutter.conf.config import reload_config
+from costcutter.config import load_config
 
 # Reload with new settings
-config = reload_config(cli_args={"dry_run": False})
+config = load_config(overrides={"dry_run": False})
 ```
 
 ### Access Configuration Values
 
 ```python
-config = get_config()
+config = load_config()
 
 # Dot notation
 print(config.dry_run)
 print(config.aws.region)
 print(config.logging.level)
 
-# Dictionary notation
-print(config["dry_run"])
-print(config["aws"]["region"])
-
 # Convert to dict
-config_dict = config.to_dict()
+config_dict = config.model_dump()
 print(config_dict["aws"]["services"])
 ```
 
@@ -525,22 +514,18 @@ costcutter
 
 ```python
 # cleanup.py
-from pathlib import Path
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 from costcutter.orchestrator import orchestrate_services
 from costcutter.logger import setup_logging
 
-# Load configuration
-config = get_config(
-    config_file=Path("./config.yaml"),
-    cli_args={
-        "dry_run": False,
-        "aws": {
-            "region": ["us-east-1"],
-            "services": ["ec2"]
-        }
+# Load configuration with overrides
+config = load_config(overrides={
+    "dry_run": False,
+    "aws": {
+        "region": ["us-east-1"],
+        "services": ["ec2"]
     }
-)
+})
 
 # Setup logging
 setup_logging(config)
@@ -644,10 +629,10 @@ costcutter --config myconfig.txt
 **Debug configuration:**
 
 ```python
-from costcutter.conf.config import get_config
+from costcutter.config import load_config
 
-config = get_config()
-print(config.to_dict())  # See final merged config
+config = load_config()
+print(config.model_dump())  # See final merged config
 ```
 
 ### Environment variables not working
@@ -662,7 +647,7 @@ print(config.to_dict())  # See final merged config
 
 ```bash
 export COSTCUTTER_DRY_RUN=false
-python -c "import os; from costcutter.conf.config import get_config; print(get_config().dry_run)"
+python -c "import os; from costcutter.config import load_config; print(load_config().dry_run)"
 # Should print: False
 ```
 

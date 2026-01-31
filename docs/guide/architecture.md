@@ -9,7 +9,7 @@ This section explains how the main pieces of CostCutter fit together and why the
 - Renders a Rich live table of events while orchestration runs and a summary when it finishes
 - Handles banner rendering, CSV export messaging, and keyboard interrupt handling
 
-**Configuration loader (`src/costcutter/conf/config.py`)**
+**Configuration loader (`src/costcutter/config.py`)**
 - Loads the default YAML file bundled with the package
 - Merges home directory overrides, an explicit file, environment variables, and CLI arguments
 - Exposes the merged result through a lightweight `Config` wrapper that supports attribute access
@@ -38,7 +38,7 @@ This section explains how the main pieces of CostCutter fit together and why the
 ## Data flow
 
 1. CLI parses arguments and clears the terminal
-2. `get_config` merges configuration sources into a single object
+2. `load_config` merges configuration sources into a single object
 3. Logging is initialised based on the merged configuration
 4. The orchestrator resolves regions and services, then creates an AWS session via `create_aws_session`
 5. Each `(region, service)` pair runs in the thread pool and calls the appropriate handler

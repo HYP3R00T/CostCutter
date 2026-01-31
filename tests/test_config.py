@@ -1,8 +1,8 @@
-"""Tests for costcutter.conf.config"""
+"""Tests for costcutter.config"""
 
 from __future__ import annotations
 
-from costcutter.conf.config import AWSSettings, Config, load_config
+from costcutter.config import AWSSettings, Config, load_config
 
 
 def test_config_model_defaults() -> None:

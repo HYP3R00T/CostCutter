@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from costcutter.conf.config import load_config
+from costcutter.config import load_config
 from costcutter.logger import setup_logging
 from costcutter.orchestrator import orchestrate_services
 from costcutter.reporter import get_reporter
