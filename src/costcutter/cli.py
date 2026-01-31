@@ -107,7 +107,7 @@ def run_cli(dry_run: bool | None = None, config_file: Path | None = None) -> Non
     overrides = {}
     if dry_run is not None:
         overrides["dry_run"] = dry_run
-    config = load_config(overrides=overrides)
+    config = load_config(overrides=overrides, config_file=config_file)
     setup_logging(config)
 
     dry_run_eff = dry_run if dry_run is not None else getattr(config, "dry_run", True)

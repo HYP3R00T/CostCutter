@@ -1,7 +1,7 @@
-import inspect
 import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from graphlib import TopologicalSorter
 from typing import Any
 
 from boto3.session import Session
@@ -9,12 +9,18 @@ from pydantic import BaseModel
 
 from costcutter.config import load_config
 from costcutter.core.session_helper import create_aws_session
+from costcutter.dependencies import RESOURCE_DEPENDENCIES, get_all_resources
 from costcutter.reporter import get_reporter
-
-# Reporter no longer needed at service-level (resource handlers still record events)
 from costcutter.services.ec2 import cleanup_ec2
-from costcutter.services.elasticbeanstalk import cleanup_elasticbeanstalk
+from costcutter.services.ec2 import get_handler_for_resource as get_ec2_handler
+from costcutter.services.elasticbeanstalk import (
+    cleanup_elasticbeanstalk,
+)
+from costcutter.services.elasticbeanstalk import (
+    get_handler_for_resource as get_eb_handler,
+)
 from costcutter.services.s3 import cleanup_s3
+from costcutter.services.s3 import get_handler_for_resource as get_s3_handler
 
 logger = logging.getLogger(__name__)
 
@@ -24,53 +30,318 @@ def _get_config_value(obj: BaseModel | dict[str, Any] | Any, key: str, default: 
     if isinstance(obj, BaseModel):
         return getattr(obj, key, default)
     if isinstance(obj, dict):
-        return obj.get(key, default)  # type: ignore[call-overload]
+        return obj.get(key, default)
     return getattr(obj, key, default)
 
 
 SERVICE_HANDLERS = {
-    # Each value can be a functional entrypoint `run(session, region, dry_run, reporter)`
+    # Service-level handlers (used for non-DAG execution path)
     "ec2": cleanup_ec2,
     "elasticbeanstalk": cleanup_elasticbeanstalk,
     "s3": cleanup_s3,
-    # "lambda": cleanup_lambda,
+}
+
+# Resource-level handler getters for DAG-based execution
+RESOURCE_HANDLER_GETTERS: dict[str, Callable[[str], Callable | None]] = {
+    "ec2": get_ec2_handler,
+    "elasticbeanstalk": get_eb_handler,
+    "s3": get_s3_handler,
 }
 
 
 def _service_supported_in_region(available_regions_map: dict[str, set[str]], service_key: str, region: str) -> bool:
+    """Check if a service is supported in a given region."""
     regions = available_regions_map.get(service_key)
     # If mapping unknown, default to allowed to avoid over-blocking
     return True if regions is None else region in regions
 
 
-def process_region_service(
+def _get_resource_handler(service: str, resource_type: str) -> Callable | None:
+    """Get the handler function for a specific service resource type.
+
+    Args:
+        service: Service name (ec2, elasticbeanstalk, s3)
+        resource_type: Resource type within the service
+
+    Returns:
+        Handler function or None if not found
+    """
+    getter = RESOURCE_HANDLER_GETTERS.get(service)
+    if getter is None:
+        return None
+    return getter(resource_type)
+
+
+def _process_single_resource(
     session: Session,
+    service: str,
+    resource_type: str,
     region: str,
-    service_key: str,
-    handler_entry: Callable,
     dry_run: bool,
-) -> None:
-    logger.info("[%s][%s] Starting (dry_run=%s)", region, service_key, dry_run)
+    resource_max_workers: int = 10,
+) -> dict[str, Any]:
+    """Execute deletion for a single service/resource/region combination.
 
-    # Updated functional entrypoint: run(session, region, dry_run, **kwargs?) -> int|None
-    # NOTE: Service-level reporter events removed to reduce output volume; resource-level handlers still record.
-    if inspect.isfunction(handler_entry):
-        try:
-            logger.info("[%s][%s] Executing service handler", region, service_key)
-            handler_entry(session=session, region=region, dry_run=dry_run)
-        except Exception as e:
-            logger.exception("[%s][%s] Failed: %s", region, service_key, e)
-            raise
-        else:
-            logger.info("[%s][%s] Finished", region, service_key)
-        return
+    Args:
+        session: AWS session
+        service: Service name (e.g., 'ec2')
+        resource_type: Resource type (e.g., 'instances')
+        region: AWS region
+        dry_run: Whether to perform dry run
+        resource_max_workers: Max concurrent workers for resource handler (e.g., parallel instance deletions)
 
-    raise TypeError(f"Unsupported handler type for service '{service_key}': {type(handler_entry)!r}")
+    Returns:
+        Dict with execution details (succeeded, failed, etc.)
+    """
+    handler = _get_resource_handler(service, resource_type)
+    if handler is None:
+        logger.warning("[%s][%s][%s] No handler found for resource", region, service, resource_type)
+        return {"status": "skipped", "reason": "no_handler"}
+
+    task_id = f"{region}/{service}/{resource_type}"
+    logger.info("[%s] Starting deletion", task_id)
+
+    try:
+        handler(session=session, region=region, dry_run=dry_run, max_workers=resource_max_workers)
+        logger.info("[%s] Completed successfully", task_id)
+        return {"status": "succeeded"}
+    except Exception as e:
+        logger.exception("[%s] Failed with error: %s", task_id, e)
+        return {"status": "failed", "error": str(e), "exception_type": type(e).__name__}
+
+
+def _build_dependency_graph(selected_resources: set[tuple[str, str]], regions: list[str]) -> dict[tuple, list[tuple]]:
+    """Build a task dependency graph for topological sorting.
+
+    Args:
+        selected_resources: Set of (service, resource_type) tuples to delete
+        regions: List of regions to process
+
+    Returns:
+        Dict mapping task tuples to lists of task dependencies
+    """
+    # Task representation: (service, resource_type, region)
+    task_dependencies: dict[tuple, list[tuple]] = {}
+
+    for service, resource_type in selected_resources:
+        for region in regions:
+            task = (service, resource_type, region)
+            deps = RESOURCE_DEPENDENCIES.get((service, resource_type), [])
+
+            # Convert resource dependencies to task dependencies (same resource, all regions)
+            task_deps: list[tuple] = []
+            for dep_service, dep_resource in deps:
+                # Dependency must complete in the same region before this task
+                dep_task = (dep_service, dep_resource, region)
+                task_deps.append(dep_task)
+
+            task_dependencies[task] = task_deps
+
+    return task_dependencies
+
+
+def _execute_with_topological_sort(
+    session: Session,
+    selected_resources: set[tuple[str, str]],
+    regions: list[str],
+    available_regions_map: dict[str, set[str]],
+    dry_run: bool,
+    max_workers: int,
+    resource_max_workers: int = 10,
+) -> dict[str, Any]:
+    """Execute resource deletion using topological sort for dependency ordering.
+
+    Args:
+        session: AWS session
+        selected_resources: Set of (service, resource_type) tuples to delete
+        regions: List of AWS regions
+        available_regions_map: Map of service -> available regions
+        dry_run: Whether to perform dry run
+        max_workers: Max concurrent tasks (stage-level parallelism)
+        resource_max_workers: Max concurrent workers per resource handler
+
+    Returns:
+        Summary dict with execution statistics
+    """
+    # Build task graph and filter by supported regions
+    task_dependencies = _build_dependency_graph(selected_resources, regions)
+    tasks = {
+        task: deps
+        for task, deps in task_dependencies.items()
+        if _service_supported_in_region(available_regions_map, task[0], task[2])
+    }
+
+    if not tasks:
+        logger.warning("No valid tasks to execute after filtering by supported regions")
+        return {"processed": 0, "skipped": 0, "failed": 0, "events": [], "stages": []}
+
+    # Compute topological order using graphlib
+    sorter = TopologicalSorter(tasks)
+    try:
+        sorted_tasks = tuple(sorter.static_order())
+    except Exception as e:
+        logger.error("Failed to compute topological sort: %s", e)
+        raise RuntimeError(f"Dependency graph has cycles or invalid structure: {e}") from e
+
+    logger.info(
+        "Computed deletion order: %d tasks across %d resources and %d regions",
+        len(sorted_tasks),
+        len(selected_resources),
+        len(regions),
+    )
+
+    # Group tasks into stages using TopologicalSorter's built-in stage detection
+    # This is O(n) compared to the manual O(n²) approach
+    sorter = TopologicalSorter(tasks)
+    sorter.prepare()
+
+    stages: list[list[tuple]] = []
+    while sorter.is_active():
+        # get_ready() returns all tasks whose dependencies are satisfied
+        ready_tasks = sorter.get_ready()
+        if ready_tasks:
+            stage = list(ready_tasks)
+            stages.append(stage)
+            # Mark all tasks in this stage as done
+            for task in stage:
+                sorter.done(task)
+
+    logger.info("Created %d execution stages (optimized grouping)", len(stages))
+
+    # Execute stages sequentially, with parallelism within each stage
+    succeeded = 0
+    failed = 0
+    deferred: list[tuple] = []
+    stage_results: list[dict] = []
+
+    for stage_num, stage_tasks in enumerate(stages, 1):
+        logger.info("[Stage %d/%d] Executing %d tasks", stage_num, len(stages), len(stage_tasks))
+        stage_summary: dict[str, Any] = {
+            "stage": stage_num,
+            "total": len(stage_tasks),
+            "succeeded": 0,
+            "failed": 0,
+            "tasks": [],
+        }
+
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(stage_tasks))) as executor:
+            future_map: dict[Any, tuple] = {}
+            for task in stage_tasks:
+                service, resource_type, region = task
+                fut = executor.submit(
+                    _process_single_resource, session, service, resource_type, region, dry_run, resource_max_workers
+                )
+                future_map[fut] = task
+
+            for future in as_completed(future_map):
+                task = future_map[future]
+                service, resource_type, region = task
+
+                try:
+                    result = future.result()
+                    if result["status"] == "succeeded":
+                        succeeded += 1
+                        stage_summary["succeeded"] += 1
+                        stage_summary["tasks"].append({
+                            "task": f"{region}/{service}/{resource_type}",
+                            "status": "succeeded",
+                        })
+                    elif result["status"] == "failed":
+                        failed += 1
+                        stage_summary["failed"] += 1
+                        deferred.append(task)
+                        stage_summary["tasks"].append({
+                            "task": f"{region}/{service}/{resource_type}",
+                            "status": "failed",
+                            "reason": result.get("reason"),
+                        })
+                except Exception as e:
+                    failed += 1
+                    stage_summary["failed"] += 1
+                    deferred.append(task)
+                    stage_summary["tasks"].append({
+                        "task": f"{region}/{service}/{resource_type}",
+                        "status": "failed",
+                        "reason": str(e),
+                    })
+
+        stage_results.append(stage_summary)
+
+    # Attempt retry of deferred tasks once
+    if deferred:
+        logger.info("[Deferred Retry] Attempting %d previously failed tasks", len(deferred))
+        deferred_summary: dict[str, Any] = {
+            "stage": "deferred_retry",
+            "total": len(deferred),
+            "succeeded": 0,
+            "failed": 0,
+            "tasks": [],
+        }
+
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(deferred))) as executor:
+            future_map = {}
+            for task in deferred:
+                service, resource_type, region = task
+                fut = executor.submit(
+                    _process_single_resource, session, service, resource_type, region, dry_run, resource_max_workers
+                )
+                future_map[fut] = task
+
+            for future in as_completed(future_map):
+                task = future_map[future]
+                service, resource_type, region = task
+
+                try:
+                    result = future.result()
+                    if result["status"] == "succeeded":
+                        succeeded += 1
+                        deferred_summary["succeeded"] += 1
+                        failed -= 1
+                        deferred_summary["tasks"].append({
+                            "task": f"{region}/{service}/{resource_type}",
+                            "status": "succeeded",
+                        })
+                    else:
+                        deferred_summary["failed"] += 1
+                        deferred_summary["tasks"].append({
+                            "task": f"{region}/{service}/{resource_type}",
+                            "status": "failed",
+                            "reason": result.get("reason"),
+                        })
+                except Exception as e:
+                    deferred_summary["failed"] += 1
+                    deferred_summary["tasks"].append({
+                        "task": f"{region}/{service}/{resource_type}",
+                        "status": "failed",
+                        "reason": str(e),
+                    })
+
+        stage_results.append(deferred_summary)
+
+    # After all work is finished, gather recorded events from the global reporter
+    reporter = get_reporter()
+    events = reporter.to_dicts()
+
+    return {
+        "processed": succeeded,
+        "skipped": len(tasks),  # skipped by filtering, not explicitly tracked
+        "failed": failed,
+        "events": events,
+        "stages": stage_results,
+    }
 
 
 def orchestrate_services(
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    """Orchestrate resource deletion using topological sort for dependency ordering.
+
+    Retrieves available resources from the dependency registry, builds a task graph
+    respecting AWS dependencies, and executes deletion in topologically-sorted order.
+
+    Returns:
+        Summary dict with execution statistics and stage-wise results
+    """
     config = load_config()
 
     # Resolve services
@@ -84,9 +355,6 @@ def orchestrate_services(
 
     if not selected_service_keys:
         raise ValueError("No valid services selected in the configuration.")
-
-    # Keep both key and handler together to avoid reverse lookups later
-    services_to_process: list[tuple[str, Any]] = [(s, SERVICE_HANDLERS[s]) for s in selected_service_keys]
 
     # Create a base AWS session based on config/credentials
     session = create_aws_session(config)
@@ -121,54 +389,43 @@ def orchestrate_services(
 
     logger.info("Regions to process: %s", regions)
     logger.info("Selected services: %s", selected_service_keys)
-    logger.debug("Service handlers: %s", [h.__name__ for _, h in services_to_process])
 
-    # Prebuild the work list and account for skips up front (still log skips)
-    tasks: list[tuple[str, str, Any]] = []  # (region, service_key, handler_entry)
-    skipped = 0
-    for region in regions:
-        for service_key, handler_entry in services_to_process:
-            if not _service_supported_in_region(available_regions_map, service_key, region):
-                logger.info("[%s][%s] Skipped: service not available in region", region, service_key)
-                skipped += 1
-                continue
-            tasks.append((region, service_key, handler_entry))
+    # Get all defined resources from dependency registry
+    all_resources = get_all_resources()
 
-    # Allow custom worker count via config, fallback to reasonable default based on actual tasks
+    # Filter to only resources in selected services
+    selected_resources = {(svc, res) for svc, res in all_resources if svc in selected_service_keys}
+
+    if not selected_resources:
+        raise ValueError("No resources available for selected services")
+
+    logger.info("Selected resources: %s", selected_resources)
+
+    # Allow custom worker count via config, fallback to reasonable default
     max_workers = getattr(getattr(config, "aws", None), "max_workers", None)
     if not isinstance(max_workers, int) or max_workers <= 0:
-        total_tasks = max(1, len(tasks))
-        max_workers = min(32, total_tasks)
+        max_workers = min(32, len(regions) * len(selected_resources))
 
-    # Execute tasks concurrently and track successes/failures
-    succeeded = 0
-    failed = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_map: dict[Any, tuple[str, str]] = {}
-        for region, service_key, handler_entry in tasks:
-            fut = executor.submit(process_region_service, session, region, service_key, handler_entry, dry_run)
-            future_map[fut] = (region, service_key)
+    # Get resource-level max workers (controls parallelism within each resource handler)
+    resource_max_workers = getattr(getattr(config, "aws", None), "resource_max_workers", 10)
+    if not isinstance(resource_max_workers, int) or resource_max_workers <= 0:
+        resource_max_workers = 10
 
-        for future in as_completed(future_map):
-            region, svc_name = future_map[future]
-            try:
-                # Propagate exceptions from the task so callers can observe failures
-                future.result()
-            except Exception as e:
-                failed += 1
-                logger.exception("[%s][%s] Task failed: %s", region, svc_name, e)
-            else:
-                succeeded += 1
-                logger.info("[%s][%s] Task completed", region, svc_name)
+    logger.info(
+        "Parallelism config: max_workers=%d (stage-level), resource_max_workers=%d (per-resource)",
+        max_workers,
+        resource_max_workers,
+    )
 
-    # After all work is finished, gather recorded events from the global reporter
-    reporter = get_reporter()
-    events = reporter.to_dicts()
+    # Execute using topological sort for dependency-aware ordering
+    summary = _execute_with_topological_sort(
+        session=session,
+        selected_resources=selected_resources,
+        regions=regions,
+        available_regions_map=available_regions_map,
+        dry_run=dry_run,
+        max_workers=max_workers,
+        resource_max_workers=resource_max_workers,
+    )
 
-    # Return a small summary including counters and serialized events
-    return {
-        "processed": succeeded,
-        "skipped": skipped,
-        "failed": failed,
-        "events": events,
-    }
+    return summary

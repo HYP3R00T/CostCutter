@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from boto3.session import Session
 
 from costcutter.services.ec2.elastic_ips import cleanup_elastic_ips
@@ -13,8 +15,20 @@ _HANDLERS = {
     "snapshots": cleanup_snapshots,
     "elastic_ips": cleanup_elastic_ips,
     "key_pairs": cleanup_key_pairs,
-    "security_group": cleanup_security_groups,
+    "security_groups": cleanup_security_groups,
 }
+
+
+def get_handler_for_resource(resource_type: str) -> Callable[..., None] | None:
+    """Get the handler function for a specific EC2 resource type.
+
+    Args:
+        resource_type: EC2 resource type (e.g., 'instances', 'volumes', 'security_groups')
+
+    Returns:
+        Handler function or None if resource type not found
+    """
+    return _HANDLERS.get(resource_type)
 
 
 def cleanup_ec2(session: Session, region: str, dry_run: bool = True, max_workers: int = 1):
