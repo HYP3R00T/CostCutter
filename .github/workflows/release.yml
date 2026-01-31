@@ -42,7 +42,7 @@ jobs:
       - name: Bump version
         id: version
         run: |
-          uv version --bump ${{ inputs.bump }}
+          uv version --bump ${{ inputs.bump }} --no-input
           VERSION=$(uv version --short)
           echo "new_version=$VERSION" >> $GITHUB_OUTPUT
 
