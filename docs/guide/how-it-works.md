@@ -5,7 +5,7 @@ This page breaks down a single CostCutter run from CLI invocation to final summa
 ## High level timeline
 
 1. **CLI start** - Typer parses flags, clears the console, and prints the ASCII banner
-2. **Configuration merge** - `load_config` loads defaults, home overrides, optional files, environment variables, and CLI overrides
+2. **Configuration merge & validation** - `load_config` uses [utilityhub_config](https://utilityhub.hyperoot.dev/packages/utilityhub_config/) to load and merge configuration from defaults, global config, project config, explicit config files, dotenv, environment variables, and runtime overrides. Pydantic validation runs immediately—invalid configurations fail here with detailed error messages before any AWS API calls.
 3. **Logging** - `setup_logging` configures file handlers and suppresses noisy libraries
 4. **Session creation** - `create_aws_session` builds a boto3 session using explicit keys, a credential file, or the default resolver
 5. **Worklist build** - the orchestrator pairs each configured region with each requested service and filters out unsupported region/service combinations
@@ -35,15 +35,19 @@ This page breaks down a single CostCutter run from CLI invocation to final summa
 
 ## Configuration precedence
 
-Configuration sources apply in this order:
+Configuration sources are resolved using [utilityhub_config](https://utilityhub.hyperoot.dev/packages/utilityhub_config/) in this order (lowest to highest priority):
 
-1. Built-in defaults (defined in `src/costcutter/config.py`)
-2. Home overrides (`~/.costcutter.yaml`, `.yml`, `.toml`, `.json`)
-3. Explicit file from `--config`
-4. Environment variables prefixed with `COSTCUTTER_`
-5. CLI flags (`--dry-run`, `--no-dry-run`)
+1. Built-in defaults (field defaults in Pydantic models, defined in [config.py](../../src/costcutter/config.py))
+2. Global config (`~/.config/costcutter/costcutter.{yaml,toml}`)
+3. Project config (`./costcutter.{yaml,toml}` or `./config/costcutter.{yaml,toml}`)
+4. Explicit config file (via `--config`)
+5. Dotenv (`.env` file in current directory)
+6. Environment variables (prefixed with `COSTCUTTER_`)
+7. Runtime overrides (CLI flags like `--dry-run` or Python API `overrides` parameter)
 
-Later sources override earlier ones. Nested keys are merged recursively so you can set only the fields you care about.
+Later sources override earlier ones. Nested keys are merged so you can set only the fields you care about. **All values are validated with Pydantic** - type errors, constraint violations, and unknown fields cause immediate failure with detailed error messages.
+
+See [Configuration Reference](./config-reference.md) for complete details on precedence, validation, and all available options.
 
 ## Safety features
 
