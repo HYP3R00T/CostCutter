@@ -1,23 +1,12 @@
 import logging
 import os
-from typing import Any
 
 import boto3
 from boto3.session import Session
-from pydantic import BaseModel
 
-from costcutter.conf.config import Config
+from costcutter.config import Config
 
 logger = logging.getLogger(__name__)
-
-
-def _get_aws_value(aws_config: BaseModel | dict[str, Any] | object, key: str, default: str | None = None) -> str | None:
-    """Extract value from aws config (BaseModel, dict, or object)."""
-    if isinstance(aws_config, BaseModel):
-        return getattr(aws_config, key, default)
-    if isinstance(aws_config, dict):
-        return aws_config.get(key, default)
-    return getattr(aws_config, key, default)
 
 
 def create_aws_session(config: Config) -> Session:
@@ -25,18 +14,13 @@ def create_aws_session(config: Config) -> Session:
 
     Falls back through explicit keys, credential file, then default discovery.
     """
-    try:
-        aws_config = config.aws
-    except AttributeError:
-        aws_config = {}
+    aws_config = config.aws
 
-    # Handle dict-based aws_config
-    aws_access_key_id = _get_aws_value(aws_config, "aws_access_key_id")
-    aws_secret_access_key = _get_aws_value(aws_config, "aws_secret_access_key")
-    aws_session_token = _get_aws_value(aws_config, "aws_session_token")
-    credential_file_path_raw = _get_aws_value(aws_config, "credential_file_path", "")
-    credential_file_path = os.path.expanduser(credential_file_path_raw or "")
-    profile_name = _get_aws_value(aws_config, "profile", "default")
+    aws_access_key_id = aws_config.aws_access_key_id
+    aws_secret_access_key = aws_config.aws_secret_access_key
+    aws_session_token = aws_config.aws_session_token
+    credential_file_path = os.path.expanduser(aws_config.credential_file_path or "")
+    profile_name = aws_config.profile
 
     if aws_access_key_id and aws_secret_access_key:
         logger.info("Using credentials from config (access key + secret)")

@@ -18,7 +18,7 @@ All modes expose the same options.
 | `--no-dry-run` | Disable dry run for the current invocation. |
 | `--config PATH` | Load an explicit YAML, YML, TOML, or JSON file. |
 
-Dry run is enabled by default through `src/costcutter/conf/config.yaml`. Use `--no-dry-run` only when you intend to delete resources.
+Dry run is enabled by default. Use `--no-dry-run` only when you intend to delete resources.
 
 ## Typical Workflows
 

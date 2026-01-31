@@ -7,7 +7,7 @@ from typing import Any
 from boto3.session import Session
 from pydantic import BaseModel
 
-from costcutter.conf.config import load_config
+from costcutter.config import load_config
 from costcutter.core.session_helper import create_aws_session
 from costcutter.reporter import get_reporter
 
@@ -24,7 +24,7 @@ def _get_config_value(obj: BaseModel | dict[str, Any] | Any, key: str, default: 
     if isinstance(obj, BaseModel):
         return getattr(obj, key, default)
     if isinstance(obj, dict):
-        return obj.get(key, default)
+        return obj.get(key, default)  # type: ignore[call-overload]
     return getattr(obj, key, default)
 
 

@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from costcutter.conf.config import Config
+from costcutter.config import Config
 from costcutter.core import session_helper
 
 

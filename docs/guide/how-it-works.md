@@ -5,7 +5,7 @@ This page breaks down a single CostCutter run from CLI invocation to final summa
 ## High level timeline
 
 1. **CLI start** - Typer parses flags, clears the console, and prints the ASCII banner
-2. **Configuration merge** - `get_config` loads defaults, home overrides, optional files, environment variables, and CLI overrides
+2. **Configuration merge** - `load_config` loads defaults, home overrides, optional files, environment variables, and CLI overrides
 3. **Logging** - `setup_logging` configures file handlers and suppresses noisy libraries
 4. **Session creation** - `create_aws_session` builds a boto3 session using explicit keys, a credential file, or the default resolver
 5. **Worklist build** - the orchestrator pairs each configured region with each requested service and filters out unsupported region/service combinations
@@ -37,7 +37,7 @@ This page breaks down a single CostCutter run from CLI invocation to final summa
 
 Configuration sources apply in this order:
 
-1. Bundled defaults (`src/costcutter/conf/config.yaml`)
+1. Built-in defaults (defined in `src/costcutter/config.py`)
 2. Home overrides (`~/.costcutter.yaml`, `.yml`, `.toml`, `.json`)
 3. Explicit file from `--config`
 4. Environment variables prefixed with `COSTCUTTER_`

@@ -53,7 +53,7 @@ If the service only supports a subset of regions, rely on `session.get_available
 
 ## 4. Update defaults and documentation
 
-- Append the service name to `aws.services` in `src/costcutter/conf/config.yaml`
+- Append the service name to `aws.services` defaults in `src/costcutter/config.py`
 - Refresh relevant documentation (for example `docs/guide/supported-services.md`)
 
 ## 5. Write tests
