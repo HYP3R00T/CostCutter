@@ -1,30 +1,30 @@
 {
-    "name": "costcutter",
-    "build": {
-        "context": ".",
-        "dockerfile": "Dockerfile"
-    },
-    "postCreateCommand": "scripts/setup.sh",
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "tamasfe.even-better-toml",
-                "christian-kohler.path-intellisense",
-                "ms-python.vscode-pylance",
-                "ms-python.python",
-                "ms-python.debugpy",
-                "charliermarsh.ruff",
-                "redhat.vscode-yaml",
-                "hverlin.mise-vscode",
-                "amazonwebservices.aws-toolkit-vscode",
-                "esbenp.prettier-vscode"
-            ]
-        }
-    },
-    "mounts": [
-        "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind"
-    ],
-    "forwardPorts": [
-        5555
-    ]
+  "name": "costcutter",
+  "build": {
+    "context": ".",
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "scripts/setup.sh",
+  "containerEnv": {
+    "MISE_GITHUB_TOKEN": "${localEnv:MISE_GITHUB_TOKEN}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "tamasfe.even-better-toml",
+        "christian-kohler.path-intellisense",
+        "ms-python.vscode-pylance",
+        "ms-python.python",
+        "ms-python.debugpy",
+        "charliermarsh.ruff",
+        "redhat.vscode-yaml",
+        "hverlin.mise-vscode",
+        "amazonwebservices.aws-toolkit-vscode",
+        "esbenp.prettier-vscode",
+        "astral-sh.ty"
+      ]
+    }
+  },
+  "mounts": ["source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind"],
+  "forwardPorts": [5555]
 }

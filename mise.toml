@@ -1,10 +1,10 @@
 [tools]
-python = "3.13"
+python = "3.14"
 uv = "latest"
 pre-commit = "latest"
-aws-cli = "latest"
+aws-cli = "2.33.12"
 node = "lts"
-"ubi:pnpm/pnpm" = "latest"
+"pnpm" = "latest"
 prettier = "latest"
 
 [settings]
@@ -14,13 +14,13 @@ python.uv_venv_auto = true
 idiomatic_version_file_enable_tools = ["python"]
 
 [hooks]
-enter = "bash ./scripts/setup_project.sh"
+enter = "bash ./scripts/enter_project.sh"
 
 [env]
 UV_LINK_MODE = "copy"
 _.path = ['{{config_root}}/node_modules/.bin']
 
-[tasks.run]
+[tasks.cc]
 description = "Run the costcutter app"
 run = "uv run python -m costcutter"
 
