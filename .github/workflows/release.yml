@@ -39,9 +39,6 @@ jobs:
         with:
           install: true
 
-      - name: Sync dependencies
-        run: uv sync --locked
-
       - name: Bump version
         id: version
         run: |
