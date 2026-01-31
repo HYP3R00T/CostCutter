@@ -98,7 +98,7 @@ requires-dist = [
     { name = "pyfiglet", specifier = ">=1.0.3" },
     { name = "rich", specifier = ">=14.1.0" },
     { name = "typer", specifier = ">=0.16.0" },
-    { name = "utilityhub-config", specifier = ">=0.1.1" },
+    { name = "utilityhub-config", specifier = ">=0.2.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -548,16 +548,16 @@ wheels = [
 
 [[package]]
 name = "utilityhub-config"
-version = "0.1.1"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/83/f7253bf93ec959e3721e2328cdcf6ae650fee3808efc3cf4873afd932312/utilityhub_config-0.1.1.tar.gz", hash = "sha256:19ef9ca80d8b5f5701060ccdfc6d77d86f4e34df9837c7f04654004e8b966dd1", size = 7464, upload-time = "2025-12-29T08:47:07.534Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/49/4bfbb0627cc00fc8b232c00fdb4d4e76ad51bb7aa3f79afa8789a0684914/utilityhub_config-0.2.0.tar.gz", hash = "sha256:f472b5cc77796ea23923c82ddff2a3ec62ce4b3931947655916e3f1fe1703ac1", size = 8117, upload-time = "2026-01-31T19:38:16.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1f/72/a5d2043b9912e7a26d0fb7312fe792e8905aecf694c3c0967a5a4e7f6cbe/utilityhub_config-0.1.1-py3-none-any.whl", hash = "sha256:fa7516e9cbe398ceab53d7bdcf86d899de98ea62319f4cb2676436d198921e4a", size = 11494, upload-time = "2025-12-29T08:47:05.488Z" },
+    { url = "https://files.pythonhosted.org/packages/69/0c/83c7b4482b5754654d1c90f516a73a4ed2a0572e7020cf08c52888277a46/utilityhub_config-0.2.0-py3-none-any.whl", hash = "sha256:f19257067dd4735863553fb6e9d22223f69580348cf2542bc7fdf5c931f60dbf", size = 12374, upload-time = "2026-01-31T19:38:17.509Z" },
 ]
 
 [[package]]
