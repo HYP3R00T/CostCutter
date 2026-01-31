@@ -1,0 +1,43 @@
+[project]
+site_name = "CostCutter"
+site_url = "https://costcutter.dev"
+site_description = "A kill-switch for AWS - Scan and clean up AWS resources with a single command"
+site_author = "CostCutter Contributors"
+docs_dir = "docs"
+site_dir = "site"
+copyright = "&copy; 2025 CostCutter Contributors"
+
+# Navigation structure
+nav = [
+    { Home = "index.md" },
+    { "What is CostCutter?" = "guide/what-is-costcutter.md" },
+    { Guide = [
+        { "Getting Started" = "guide/getting-started.md" },
+        { "AWS Terraform Setup" = "guide/getting-started-terraform.md" },
+        { "Configuration Reference" = "guide/config-reference.md" },
+        { "How It Works" = "guide/how-it-works.md" },
+        { "Supported Services" = "guide/supported-services.md" },
+        { "Troubleshooting" = "guide/troubleshooting.md" },
+    ] },
+    { Usage = [
+        { "CLI Usage" = "usage-cli.md" },
+        { "Terraform Usage" = "usage-terraform.md" },
+    ] },
+    { Architecture = [
+        { "Dependency Scaling" = "architecture/dependency-scaling.md" },
+        { "How It Works" = "guide/architecture.md" },
+    ] },
+    { Contributing = [
+        { "Overview" = "contributing/index.md" },
+        { "Architecture" = "contributing/architecture.md" },
+        { "Code Standards" = "contributing/code-standards.md" },
+        { "Code Structure" = "contributing/code-structure.md" },
+        { "Testing" = "contributing/testing.md" },
+        { "Adding a Service" = "contributing/adding-service.md" },
+        { "Adding Subresources" = "contributing/adding-subresources.md" },
+        { "Submission Guide" = "contributing/submission.md" },
+    ] },
+]
+
+[project.theme]
+variant = "modern"
