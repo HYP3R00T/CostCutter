@@ -66,16 +66,27 @@ jobs:
       - name: Generate requirements.txt
         run: uv export --frozen --output-file=requirements.txt
 
-      - name: Commit version bump and changelog
+      - name: Create release branch and push changes
+        id: release_branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml
-          git add CHANGELOG.md
-          git add uv.lock
-          git add requirements.txt
+          BRANCH="release/v${{ steps.version.outputs.new_version }}"
+          git checkout -b "$BRANCH"
+          git add pyproject.toml CHANGELOG.md uv.lock requirements.txt
           git commit -m "chore(release): v${{ steps.version.outputs.new_version }}"
-          git push
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          head: "release/v${{ steps.version.outputs.new_version }}"
+          base: main
+          title: "chore(release): v${{ steps.version.outputs.new_version }}"
+          body-path: CHANGELOG.md
+          labels: release
 
       - name: Create git tag
         run: |
