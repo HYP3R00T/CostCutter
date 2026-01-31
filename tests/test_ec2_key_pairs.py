@@ -19,6 +19,11 @@ class DummySession:
 
 
 def test_get_account_id():
+    # Reset the cache before test
+    import costcutter.services.common
+
+    costcutter.services.common._ACCOUNT_ID = None
+
     session = DummySession()
     assert key_pairs._get_account_id(session) == "123456789012"
 
