@@ -17,12 +17,23 @@
             "file": "./.github/instructions/pullRequestDescriptionGeneration.instructions.md"
         }
     ],
+    "[json]": {
+        "editor.quickSuggestions": {
+            "strings": true
+        },
+        "editor.suggest.insertMode": "replace",
+        "editor.tabSize": 2,
+        "files.insertFinalNewline": true
+    },
     "[python]": {
         "editor.codeActionsOnSave": {
             "source.fixAll.ruff": "explicit",
             "source.organizeImports.ruff": "explicit"
         },
         "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.rulers": [
+            120
+        ]
     },
     "[toml]": {
         "editor.defaultFormatter": "tamasfe.even-better-toml"
@@ -33,11 +44,7 @@
     "chat.instructionsFilesLocations": {
         ".github/instructions": true
     },
-    "chat.promptFiles": false,
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
-    "python.testing.pytestArgs": [
-        "tests"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "chat.useAgentSkills": true,
+    "ruff.lint.enable": true,
+    "ruff.nativeServer": true
 }
