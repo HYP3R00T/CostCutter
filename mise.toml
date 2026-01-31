@@ -2,7 +2,7 @@
 python = "3.14"
 uv = "latest"
 pre-commit = "latest"
-aws-cli = "latest"
+aws-cli = "2.33.12"
 node = "lts"
 "pnpm" = "latest"
 prettier = "latest"
