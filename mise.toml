@@ -20,7 +20,7 @@ enter = "bash ./scripts/enter_project.sh"
 UV_LINK_MODE = "copy"
 _.path = ['{{config_root}}/node_modules/.bin']
 
-[tasks.run]
+[tasks.cc]
 description = "Run the costcutter app"
 run = "uv run python -m costcutter"
 

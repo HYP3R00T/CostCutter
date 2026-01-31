@@ -104,7 +104,9 @@ def run_cli(dry_run: bool | None = None, config_file: Path | None = None) -> Non
 
     The CLI now always shows the Rich live progress UI; simplified per design change.
     """
-    overrides = {"dry_run": dry_run}
+    overrides = {}
+    if dry_run is not None:
+        overrides["dry_run"] = dry_run
     config = load_config(overrides=overrides)
     setup_logging(config)
 
