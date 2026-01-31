@@ -45,6 +45,10 @@ export default defineConfig({
                 items: [
                     { text: "How It Works", link: "/guide/how-it-works" },
                     { text: "Architecture", link: "/guide/architecture" },
+                    {
+                        text: "Dependency Graph & Scaling",
+                        link: "/architecture/dependency-scaling",
+                    },
                     { text: "Troubleshooting & FAQ", link: "/guide/troubleshooting" },
                 ],
             },

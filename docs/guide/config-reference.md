@@ -1,24 +1,163 @@
 # Configuration Reference
 
-Complete guide to configuring CostCutter.
+Complete guide to configuring CostCutter with type-safe validation powered by [utilityhub_config](https://utilityhub.hyperoot.dev/packages/utilityhub_config/).
 
 ## Configuration Hierarchy
 
-CostCutter merges configuration from multiple sources in this order (later sources override earlier ones):
+CostCutter uses [utilityhub_config](https://utilityhub.hyperoot.dev/packages/utilityhub_config/) to load and validate configuration from multiple sources. Settings are resolved with strict precedence from lowest to highest priority:
 
-1. **Default Config** - Built-in defaults (defined in `src/costcutter/config.py`)
-2. **Home Config** - User's home directory (`~/.costcutter.{yaml,yml,toml,json}`)
-3. **Explicit File** - File specified via `--config` flag or `config_file` parameter
-4. **Environment Variables** - Shell environment variables with `COSTCUTTER_` prefix
-5. **CLI Arguments** - Command-line flags (highest priority)
+1. **Defaults** - Field defaults from Pydantic models (defined in [config.py](../../src/costcutter/config.py#L198-L227))
+2. **Global Config** - User's home directory (`~/.config/costcutter/costcutter.{yaml,toml}`)
+3. **Project Config** - Current directory (`./costcutter.{yaml,toml}` or `./config/*.{yaml,toml}`)
+4. **Explicit Config File** - Path passed via `--config` (optional)
+5. **Dotenv** - Environment variables from `.env` file in current directory
+6. **Environment Variables** - Shell environment variables with `COSTCUTTER_` prefix
+7. **Runtime Overrides** - Passed via `overrides` parameter or CLI flags (highest priority)
 
-**Partial overrides are supported:** You only need to specify the values you want to change. Unspecified values are inherited from lower priority sources.
+**Higher levels override lower levels.** Only sources that exist are consulted. Partial overrides are fully supported—you only need to specify values you want to change.
+
+## Validation & Type Safety
+
+CostCutter enforces strict validation at configuration load time using [Pydantic v2](https://docs.pydantic.dev/). **Invalid configurations fail immediately** with detailed error messages—no resources are modified if configuration is invalid.
+
+### Validation Rules
+
+**All configuration values are validated for:**
+
+- **Type correctness** - Values must match declared types (int, str, bool, list)
+- **Constraints** - Numeric bounds, string lengths, list sizes enforced
+- **Literal types** - Restricted values (e.g., logging level must be DEBUG/INFO/WARNING/ERROR/CRITICAL)
+- **Custom validators** - Duplicate detection, AWS region warnings
+- **Extra fields** - Unknown fields in config files are rejected (catches typos)
+
+### Validation Examples
+
+**❌ Invalid Configurations (will fail):**
+
+```yaml
+# Error: max_workers must be >= 1 and <= 100
+aws:
+  max_workers: 0
+```
+
+```yaml
+# Error: Literal type - must be DEBUG/INFO/WARNING/ERROR/CRITICAL
+logging:
+  level: TRACE
+```
+
+```yaml
+# Error: Duplicate regions not allowed
+aws:
+  region:
+    - us-east-1
+    - us-east-1
+```
+
+```yaml
+# Error: services list cannot be empty
+aws:
+  services: []
+```
+
+```yaml
+# Error: Unknown field (typo detection)
+aws:
+  regions: [us-east-1]  # Should be 'region' (singular)
+```
+
+**✅ Valid Configurations:**
+
+```yaml
+# All constraints satisfied
+aws:
+  max_workers: 8
+  region:
+    - us-east-1
+    - us-west-2
+  services:
+    - ec2
+    - s3
+
+logging:
+  level: INFO
+```
+
+### AWS Region Validation
+
+CostCutter validates AWS regions against **34 official regions**:
+
+**US Regions (4):**
+`us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`
+
+**Asia Pacific (14):**
+`ap-east-1`, `ap-east-2`, `ap-south-1`, `ap-south-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-southeast-3`, `ap-southeast-4`, `ap-southeast-5`, `ap-southeast-6`, `ap-southeast-7`, `ap-northeast-1`, `ap-northeast-2`, `ap-northeast-3`
+
+**Canada (2):**
+`ca-central-1`, `ca-west-1`
+
+**Europe (8):**
+`eu-central-1`, `eu-central-2`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `eu-south-1`, `eu-south-2`
+
+**Other (6):**
+`me-south-1`, `me-central-1`, `sa-east-1`, `af-south-1`, `il-central-1`, `mx-central-1`
+
+**⚠️ Unknown regions generate warnings but don't fail:**
+
+```yaml
+aws:
+  region:
+    - us-future-1  # Warning: Unknown AWS region, but accepted
+```
+
+This preserves forward compatibility for newly released AWS regions.
+
+**Special value `all`** is supported for region discovery:
+
+```yaml
+aws:
+  region:
+    - all  # Automatically discovers available regions
+```
+
+Reference: [AWS Regions Documentation](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html)
+
+### Error Messages
+
+When validation fails, you get detailed error messages with:
+
+- **Field path** - Exact location of invalid value
+- **Error type** - What validation failed
+- **Expected value** - What the field should contain
+- **Source information** - Which file/env var caused the error
+- **Checked files** - All config files searched
+- **Precedence chain** - How values were merged
+
+**Example error output:**
+
+```
+ConfigValidationError: Configuration validation failed
+
+2 validation errors for Config
+aws.max_workers
+  Input should be greater than or equal to 1 [type=greater_than_equal]
+logging.level
+  Input should be 'DEBUG', 'INFO', 'WARNING', 'ERROR' or 'CRITICAL' [type=literal_error]
+
+Checked files:
+  - ~/.config/costcutter/costcutter.yaml (found)
+  - ./costcutter.yaml (not found)
+
+Precedence: defaults → global → project → explicit → dotenv → env → overrides
+```
+
+
 
 ## Configuration Methods
 
 ### Method 1: Default Configuration (Built-in)
 
-Defined in `src/costcutter/config.py`. Used automatically if no other config is provided.
+Defined in [config.py](../../src/costcutter/config.py). Used automatically if no other config is provided.
 
 **Default Configuration:**
 
@@ -42,6 +181,7 @@ aws:
   aws_session_token: ""
   credential_file_path: ~/.aws/credentials
   max_workers: 4
+  resource_max_workers: 4
   region:
     - us-east-1
     - ap-south-1
@@ -52,18 +192,13 @@ aws:
 
 **This is the baseline.** All other configuration methods override these defaults.
 
-### Method 2: Home Directory Config
+### Method 2: Global Config (Home Directory)
 
 Create a config file in your home directory:
 
-**Supported formats:**
+**Location:** `~/.config/costcutter/costcutter.{yaml,toml}`
 
-- `~/.costcutter.yaml`
-- `~/.costcutter.yml`
-- `~/.costcutter.toml`
-- `~/.costcutter.json`
-
-**Example (`~/.costcutter.yaml`):**
+**Example (`~/.config/costcutter/costcutter.yaml`):**
 
 ```yaml
 # Override only what you need
@@ -78,7 +213,7 @@ aws:
 
 **Result:** Regions and services are overridden. Other settings (dry_run, logging, etc.) use defaults.
 
-**TOML Example (`~/.costcutter.toml`):**
+**TOML Example (`~/.config/costcutter/costcutter.toml`):**
 
 ```toml
 dry_run = false
@@ -86,42 +221,20 @@ dry_run = false
 [aws]
 region = ["us-east-1", "us-west-2"]
 services = ["ec2", "s3"]
+max_workers = 8
 ```
 
-**JSON Example (`~/.costcutter.json`):**
+### Method 3: Project Config (Current Directory)
 
-```json
-{
-  "dry_run": false,
-  "aws": {
-    "region": ["us-east-1"],
-    "services": ["ec2"]
-  }
-}
-```
+Create a config file in your project directory:
 
-### Method 3: Explicit Config File
+**Locations (checked in order):**
+- `./costcutter.yaml`
+- `./costcutter.toml`
+- `./config/costcutter.yaml`
+- `./config/costcutter.toml`
 
-Specify a config file when running CostCutter:
-
-**CLI:**
-
-```bash
-costcutter --config /path/to/myconfig.yaml
-```
-
-**Python API:**
-
-```python
-from pathlib import Path
-from costcutter.config import load_config
-
-config = load_config()
-```
-
-**Supported formats:** `.yaml`, `.yml`, `.toml`, `.json`
-
-**Example (`myconfig.yaml`):**
+**Example (`./costcutter.yaml`):**
 
 ```yaml
 dry_run: false
@@ -133,17 +246,57 @@ aws:
     - ec2
 ```
 
-**Priority:** Overrides both defaults and home directory config.
+**Priority:** Overrides defaults and global config.
 
-### Method 4: Environment Variables
+### Method 4: Explicit Config File
+
+Provide a direct config file path via `--config`:
+
+```bash
+costcutter --config /path/to/production.yaml
+```
+
+**Supported formats:** `.yaml`, `.yml`, `.toml`, `.json`
+
+**Example (`production.yaml`):**
+
+```yaml
+dry_run: false
+aws:
+  profile: production
+  region:
+    - us-east-1
+  services:
+    - ec2
+  max_workers: 10
+```
+
+**Priority:** Overrides defaults, global config, and project config. Lower priority than dotenv/env/overrides.
+
+### Method 5: Dotenv File
+
+Create a `.env` file in your current directory:
+
+**Example (`.env`):**
+
+```bash
+COSTCUTTER_DRY_RUN=false
+COSTCUTTER_AWS__REGION=["us-east-1", "us-west-2"]
+COSTCUTTER_AWS__SERVICES=["ec2", "s3"]
+COSTCUTTER_LOGGING__LEVEL=DEBUG
+```
+
+**Priority:** Overrides defaults, global config, and project config.
+
+### Method 6: Environment Variables
 
 Set environment variables with `COSTCUTTER_` prefix.
 
 **Syntax:**
 
 - Use double underscore (`__`) for nesting
-- Variable names are case-insensitive
-- Values are automatically parsed (YAML parser used for type coercion)
+- Variable names are case-insensitive (uppercase recommended)
+- Values are automatically parsed (YAML parser for type coercion)
 
 **Examples:**
 
@@ -152,13 +305,16 @@ Set environment variables with `COSTCUTTER_` prefix.
 export COSTCUTTER_DRY_RUN=false
 
 # Override AWS region (YAML list syntax)
-export COSTCUTTER_AWS__REGION="[us-west-2, eu-central-1]"
+export COSTCUTTER_AWS__REGION='["us-west-2", "eu-central-1"]'
 
 # Override logging level
 export COSTCUTTER_LOGGING__LEVEL=DEBUG
 
-# Override single nested value
+# Override nested value
 export COSTCUTTER_AWS__PROFILE=staging
+
+# Override max_workers
+export COSTCUTTER_AWS__MAX_WORKERS=8
 
 # Run costcutter
 costcutter
@@ -167,10 +323,10 @@ costcutter
 **Type Coercion Examples:**
 
 ```bash
-export COSTCUTTER_DRY_RUN=true          # Boolean
-export COSTCUTTER_AWS__MAX_WORKERS=8    # Integer
-export COSTCUTTER_LOGGING__LEVEL=DEBUG  # String
-export COSTCUTTER_AWS__SERVICES="[ec2, s3]"  # List
+export COSTCUTTER_DRY_RUN=true               # Boolean
+export COSTCUTTER_AWS__MAX_WORKERS=8         # Integer
+export COSTCUTTER_LOGGING__LEVEL=DEBUG       # String (Literal)
+export COSTCUTTER_AWS__SERVICES='["ec2", "s3"]'  # List
 ```
 
 **Python API:**
@@ -180,46 +336,44 @@ import os
 from costcutter.config import load_config
 
 os.environ["COSTCUTTER_DRY_RUN"] = "false"
-os.environ["COSTCUTTER_AWS__REGION"] = "[us-east-1]"
+os.environ["COSTCUTTER_AWS__REGION"] = '["us-east-1"]'
 
 config = load_config()
 ```
 
-**Priority:** Overrides defaults, home config, and explicit files. Only CLI arguments have higher priority.
+**Priority:** Overrides defaults, global config, project config, and dotenv. Only runtime overrides have higher priority.
 
-### Method 5: CLI Arguments
+### Method 7: Runtime Overrides
 
-Pass arguments directly via command line:
+Pass overrides directly via CLI or Python API:
+
+**CLI (via flags):**
 
 ```bash
-# Override dry_run
 costcutter --dry-run
-
-# Combine with config file
-costcutter --config myconfig.yaml --dry-run
+costcutter --no-dry-run
 ```
-
-**Available CLI Arguments:**
-
-- `--dry-run` / `--no-dry-run` - Enable or disable dry-run mode
-- `--config PATH` - Specify config file
 
 **Python API:**
 
 ```python
 from costcutter.config import load_config
 
-cli_overrides = {
+# Highest priority - overrides all other sources
+config = load_config(overrides={
     "dry_run": False,
     "aws": {
-        "region": ["us-east-1"]
+        "region": ["us-east-1"],
+        "services": ["ec2", "s3"],
+        "max_workers": 10
+    },
+    "logging": {
+        "level": "DEBUG"
     }
-}
-
-config = load_config(overrides=cli_overrides)
+})
 ```
 
-**Priority:** Highest priority. Overrides all other sources.
+**Priority:** Highest priority. Overrides all other sources including environment variables.
 
 ## Using CostCutter as a Python Package
 
@@ -286,10 +440,11 @@ print(config_dict["aws"]["services"])
 
 #### `dry_run`
 
-- **Type:** `boolean`
+- **Type:** `bool`
 - **Default:** `true`
 - **Description:** When `true`, simulates actions without making changes. When `false`, actually deletes resources.
 - **CLI:** `--dry-run` / `--no-dry-run`
+- **Validation:** Must be boolean
 
 **Examples:**
 
@@ -305,22 +460,24 @@ export COSTCUTTER_DRY_RUN=false
 
 #### `logging.enabled`
 
-- **Type:** `boolean`
+- **Type:** `bool`
 - **Default:** `true`
-- **Description:** Enable or disable file-based logging.
+- **Description:** Enable or disable file-based logging to capture events, errors, and execution history. Logs help with debugging and audit trails.
+- **Validation:** Must be boolean
 
 #### `logging.level`
 
-- **Type:** `string`
+- **Type:** `Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]`
 - **Default:** `INFO`
-- **Options:** `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
-- **Description:** Log verbosity level.
+- **Description:** Log verbosity level. Use DEBUG for detailed output during development, INFO for normal operation, WARNING/ERROR for production environments.
+- **Validation:** Must be exactly one of: DEBUG, INFO, WARNING, ERROR, CRITICAL (case-sensitive)
 
 #### `logging.dir`
 
-- **Type:** `string` (path)
+- **Type:** `str` (path)
 - **Default:** `~/.local/share/costcutter/logs`
-- **Description:** Directory where log files are written. Supports `~` expansion.
+- **Description:** Directory path for log files. Logs are organized by date and rotated automatically. Supports `~` expansion for home directory.
+- **Validation:** Must be non-empty string
 
 **Examples:**
 
@@ -341,15 +498,17 @@ export COSTCUTTER_LOGGING__DIR=/tmp/logs
 
 #### `reporting.csv.enabled`
 
-- **Type:** `boolean`
+- **Type:** `bool`
 - **Default:** `true`
-- **Description:** Enable CSV export of all events.
+- **Description:** Enable CSV export of all events (resources scanned, actions taken, errors). Useful for auditing and record-keeping.
+- **Validation:** Must be boolean
 
 #### `reporting.csv.path`
 
-- **Type:** `string` (path)
+- **Type:** `str` (path)
 - **Default:** `~/.local/share/costcutter/reports/events.csv`
-- **Description:** Path where CSV report is saved. Supports `~` expansion.
+- **Description:** File path where CSV report is saved. Appends to existing file if present. Supports `~` expansion for home directory.
+- **Validation:** Must be non-empty string
 
 **Examples:**
 
@@ -357,7 +516,7 @@ export COSTCUTTER_LOGGING__DIR=/tmp/logs
 reporting:
   csv:
     enabled: true
-    path: ./reports/cleanup-2025-11-05.csv
+    path: ./reports/cleanup-2025-01-31.csv
 ```
 
 ```bash
@@ -369,57 +528,93 @@ export COSTCUTTER_REPORTING__CSV__PATH=./events.csv
 
 #### `aws.profile`
 
-- **Type:** `string`
+- **Type:** `str`
 - **Default:** `default`
-- **Description:** AWS CLI profile name from `~/.aws/credentials`.
+- **Description:** AWS CLI profile name from `~/.aws/credentials`. Use different profiles for dev/staging/production environments.
+- **Validation:** Must be non-empty string
 
 #### `aws.aws_access_key_id`
 
-- **Type:** `string`
+- **Type:** `str`
 - **Default:** `""` (empty)
-- **Description:** AWS access key ID. Leave empty to use credentials file or IAM role.
+- **Description:** AWS access key ID. Leave empty to use credentials file, IAM role, or profile. Explicit credentials take precedence over other methods.
+- **Validation:** Must be string (can be empty)
 
 #### `aws.aws_secret_access_key`
 
-- **Type:** `string`
+- **Type:** `str`
 - **Default:** `""` (empty)
-- **Description:** AWS secret access key. Leave empty to use credentials file or IAM role.
+- **Description:** AWS secret access key. Leave empty to use credentials file, IAM role, or profile. Should match aws_access_key_id if provided.
+- **Validation:** Must be string (can be empty)
 
 #### `aws.aws_session_token`
 
-- **Type:** `string`
+- **Type:** `str`
 - **Default:** `""` (empty)
-- **Description:** AWS session token (optional, for temporary credentials).
+- **Description:** AWS session token for temporary security credentials (STS, SSO). Optional, only required for temporary credentials.
+- **Validation:** Must be string (can be empty)
 
 #### `aws.credential_file_path`
 
-- **Type:** `string` (path)
+- **Type:** `str` (path)
 - **Default:** `~/.aws/credentials`
-- **Description:** Path to AWS credentials file.
+- **Description:** Path to AWS credentials file. Supports `~` expansion. Used when explicit keys are not provided.
+- **Validation:** Must be non-empty string
 
 #### `aws.max_workers`
 
-- **Type:** `integer`
+- **Type:** `int`
 - **Default:** `4`
-- **Description:** Number of parallel workers for orchestrator-level concurrency (regions + services).
+- **Description:** Number of parallel workers for orchestrator-level concurrency (regions + services). Higher values speed up processing but increase AWS API load. Recommended: 4-10 for normal use, up to 20 for large-scale cleanup.
+- **Validation:** Must be integer between 1 and 100 (inclusive)
+- **Constraints:** `ge=1, le=100`
+
+#### `aws.resource_max_workers`
+
+- **Type:** `int`
+- **Default:** `4`
+- **Description:** Number of parallel workers for resource-level operations within each service handler. Controls concurrency when processing individual resources. Higher values increase throughput but may hit API rate limits.
+- **Validation:** Must be integer between 1 and 100 (inclusive)
+- **Constraints:** `ge=1, le=100`
 
 #### `aws.region`
 
-- **Type:** `list[string]`
-- **Default:** `[us-east-1, ap-south-1]`
-- **Description:** AWS regions to process. Specify multiple regions for parallel cleanup.
+- **Type:** `list[str]`
+- **Default:** `["us-east-1", "ap-south-1"]`
+- **Description:** List of AWS regions to process. CostCutter validates against 34 official AWS regions and warns about unknown regions (but still accepts them for forward compatibility). Use `["all"]` to auto-discover available regions. Regions are processed in parallel based on max_workers setting.
+- **Validation:**
+  - Must be list with at least 1 item (`min_length=1`)
+  - No duplicate regions allowed (hard error)
+  - Unknown regions generate warnings (not errors)
+  - Special value `"all"` supported
+- **Constraints:** `min_length=1`, no duplicates
+- **Reference:** [AWS Regions Documentation](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html)
+
+**Supported regions:**
+- US: us-east-1, us-east-2, us-west-1, us-west-2
+- Asia Pacific: ap-east-1, ap-east-2, ap-south-1, ap-south-2, ap-southeast-1, ap-southeast-2, ap-southeast-3, ap-southeast-4, ap-southeast-5, ap-southeast-6, ap-southeast-7, ap-northeast-1, ap-northeast-2, ap-northeast-3
+- Canada: ca-central-1, ca-west-1
+- Europe: eu-central-1, eu-central-2, eu-west-1, eu-west-2, eu-west-3, eu-north-1, eu-south-1, eu-south-2
+- Other: me-south-1, me-central-1, sa-east-1, af-south-1, il-central-1, mx-central-1
 
 #### `aws.services`
 
-- **Type:** `list[string]`
-- **Default:** `[ec2, s3]`
-- **Description:** AWS services to process. The repository ships with `ec2` and `s3` handlers; include additional service names as you add new cleanup functions.
+- **Type:** `list[str]`
+- **Default:** `["ec2", "s3"]`
+- **Description:** List of AWS services to process. Service names must match handler names in `src/costcutter/services/`. The repository ships with ec2, s3, and elasticbeanstalk handlers. Add new services by implementing handlers following the existing pattern—no config changes needed.
+- **Validation:**
+  - Must be list with at least 1 item (`min_length=1`)
+  - No duplicate services allowed (hard error)
+  - Unknown services are accepted (runtime discovery from SERVICE_HANDLERS registry)
+- **Constraints:** `min_length=1`, no duplicates
 
 **Examples:**
 
 ```yaml
 aws:
   profile: production
+  max_workers: 8
+  resource_max_workers: 6
   region:
     - us-east-1
     - us-west-2
@@ -427,22 +622,23 @@ aws:
   services:
     - ec2
     - s3
-  max_workers: 8
+    - elasticbeanstalk
 ```
 
 ```bash
 export COSTCUTTER_AWS__PROFILE=staging
-export COSTCUTTER_AWS__REGION="[us-west-2, eu-central-1]"
-export COSTCUTTER_AWS__SERVICES="[ec2, s3]"
 export COSTCUTTER_AWS__MAX_WORKERS=6
+export COSTCUTTER_AWS__RESOURCE_MAX_WORKERS=8
+export COSTCUTTER_AWS__REGION='["us-west-2", "eu-central-1"]'
+export COSTCUTTER_AWS__SERVICES='["ec2", "s3"]'
 ```
 
 ## Complete Configuration Examples
 
-### Example 1: Development (Dry-Run)
+### Example 1: Development (Dry-Run with Debug)
 
 ```yaml
-# ~/.costcutter.yaml
+# ~/.config/costcutter/costcutter.yaml
 dry_run: true
 
 logging:
@@ -455,18 +651,19 @@ aws:
     - us-east-1
   services:
     - ec2
+  max_workers: 4
 ```
 
 **Usage:**
 
 ```bash
-costcutter  # Uses home config
+costcutter  # Auto-discovers global config
 ```
 
-### Example 2: Production (Execute)
+### Example 2: Production (Multi-Region Cleanup)
 
 ```yaml
-# production.yaml
+# ./costcutter.yaml (project directory)
 dry_run: false
 
 logging:
@@ -475,7 +672,7 @@ logging:
 
 reporting:
   csv:
-    path: /var/reports/cleanup-$(date +%Y%m%d).csv
+    path: /var/reports/cleanup-2025-01-31.csv
 
 aws:
   profile: production
@@ -486,13 +683,16 @@ aws:
   services:
     - ec2
     - s3
+    - elasticbeanstalk
   max_workers: 10
+  resource_max_workers: 8
 ```
 
 **Usage:**
 
 ```bash
-costcutter --config production.yaml
+cd /path/to/project
+costcutter  # Uses project config
 ```
 
 ### Example 3: Environment Variables Only
@@ -503,118 +703,378 @@ costcutter --config production.yaml
 
 export COSTCUTTER_DRY_RUN=false
 export COSTCUTTER_AWS__PROFILE=prod
-export COSTCUTTER_AWS__REGION="[us-east-1, us-west-2]"
-export COSTCUTTER_AWS__SERVICES="[ec2, s3]"
+export COSTCUTTER_AWS__REGION='["us-east-1", "us-west-2"]'
+export COSTCUTTER_AWS__SERVICES='["ec2", "s3"]'
+export COSTCUTTER_AWS__MAX_WORKERS=8
 export COSTCUTTER_LOGGING__LEVEL=INFO
 
 costcutter
 ```
 
-### Example 4: Python Script
+### Example 4: Python Script with Validation
 
 ```python
 # cleanup.py
 from costcutter.config import load_config
 from costcutter.orchestrator import orchestrate_services
 from costcutter.logger import setup_logging
+from utilityhub_config.errors import ConfigValidationError
 
-# Load configuration with overrides
-config = load_config(overrides={
-    "dry_run": False,
-    "aws": {
-        "region": ["us-east-1"],
-        "services": ["ec2"]
-    }
-})
+try:
+    # Load configuration with runtime overrides
+    config = load_config(overrides={
+        "dry_run": False,
+        "aws": {
+            "region": ["us-east-1"],
+            "services": ["ec2", "s3"],
+            "max_workers": 10
+        },
+        "logging": {
+            "level": "DEBUG"
+        }
+    })
 
-# Setup logging
-setup_logging(config)
+    # Setup logging
+    setup_logging(config)
 
-# Run cleanup
-orchestrate_services(dry_run=False)
+    # Run cleanup
+    orchestrate_services(dry_run=config.dry_run)
+
+except ConfigValidationError as e:
+    print(f"Configuration error: {e}")
+    # Error includes: validation errors, checked files, precedence chain
+    exit(1)
 ```
 
-### Example 5: Minimal Override
+### Example 5: Minimal Override with Dotenv
 
-You only need to specify what you want to change:
+Create `.env` in your project directory:
+
+```bash
+# .env
+COSTCUTTER_AWS__REGION=["eu-central-1", "eu-west-1"]
+COSTCUTTER_LOGGING__LEVEL=WARNING
+```
+
+Create minimal project config:
 
 ```yaml
-# minimal.yaml
-aws:
-  region:
-    - eu-central-1
+# costcutter.yaml
+dry_run: false
 ```
 
-**Result:** Only region is overridden. All other settings use defaults:
+**Result:**
+- `dry_run: false` from project config
+- `region: ["eu-central-1", "eu-west-1"]` from .env
+- `logging.level: WARNING` from .env
+- All other settings use defaults
 
-- `dry_run: true` (default)
-- `logging.level: INFO` (default)
-- `aws.services: [ec2, s3]` (default)
-- etc.
+### Example 6: Region Validation Warning
+
+```yaml
+# Config with future AWS region
+aws:
+  region:
+    - us-east-1
+    - us-future-1  # Not in current list, but accepted
+```
+
+**Output:**
+```
+UserWarning: Unknown AWS region(s): ['us-future-1'].
+Known regions: ['af-south-1', 'ap-east-1', ..., 'us-west-2'].
+If using a new AWS region, this warning can be ignored.
+Some regions require opt-in: https://docs.aws.amazon.com/...
+```
+
+**Execution continues** - forward compatibility preserved.
 
 ## Precedence Example
 
 Given these configurations:
 
-**1. Default (`config.yaml`):**
+**1. Defaults ([config.py](../../src/costcutter/config.py)):**
 
 ```yaml
 dry_run: true
+logging:
+  level: INFO
 aws:
-  region: [us-east-1]
+  region: [us-east-1, ap-south-1]
   services: [ec2, s3]
+  max_workers: 4
 ```
 
-**2. Home (`~/.costcutter.yaml`):**
+**2. Global (`~/.config/costcutter/costcutter.yaml`):**
 
 ```yaml
 aws:
   region: [us-west-2]
+  max_workers: 8
 ```
 
-**3. Explicit (`myconfig.yaml`):**
+**3. Project (`./costcutter.yaml`):**
 
 ```yaml
+dry_run: false
 aws:
   services: [ec2]
 ```
 
-**4. Environment:**
+**4. Explicit (`--config /path/to/explicit.yaml`):**
 
-```bash
-export COSTCUTTER_DRY_RUN=false
+```yaml
+aws:
+  services: [s3]
 ```
 
-**5. CLI:**
+**5. Dotenv (`.env`):**
 
 ```bash
-costcutter --config myconfig.yaml --dry-run
+COSTCUTTER_LOGGING__LEVEL=DEBUG
+```
+
+**6. Environment:**
+
+```bash
+export COSTCUTTER_AWS__MAX_WORKERS=12
+```
+
+**7. Runtime Overrides (Python):**
+
+```python
+config = load_config(overrides={"dry_run": True})
 ```
 
 **Final merged configuration:**
 
 ```yaml
-dry_run: true              # From CLI (highest priority)
+dry_run: true                       # From runtime overrides (highest)
+logging:
+  level: DEBUG                      # From dotenv
+  enabled: true                     # From defaults
+  dir: ~/.local/share/.../logs      # From defaults
 aws:
-  region: [us-west-2]      # From home config
-  services: [ec2]          # From explicit file
-  # Other aws.* values from defaults
+  region: [us-west-2]               # From global config
+  services: [s3]                    # From explicit config
+  max_workers: 12                   # From environment
+  resource_max_workers: 4           # From defaults
+  profile: default                  # From defaults
+  # ... other aws.* values from defaults
+reporting:
+  csv:
+    enabled: true                   # From defaults
+    path: ~/.local/share/.../csv    # From defaults
+```
+
+**Precedence Chain:** `defaults → global → project → explicit → dotenv → env → overrides`
+
+## Metadata Tracking
+
+Every configuration setting carries metadata about its source, accessible via the Python API:
+
+```python
+from costcutter.config import load_config
+
+# Note: load_config() currently returns just config for backward compatibility
+# Metadata tracking available when using utilityhub_config.load_settings() directly
+from utilityhub_config import load_settings
+from costcutter.config import Config
+
+config, metadata = load_settings(Config, app_name="costcutter", env_prefix="COSTCUTTER_")
+
+# Check where a specific setting came from
+region_source = metadata.get_source("region")
+if region_source:
+    print(f"Region source: {region_source.source}")           # e.g., "global", "env", "overrides"
+    print(f"File/path: {region_source.source_path}")          # e.g., "/home/user/.config/costcutter/costcutter.yaml"
+    print(f"Raw value: {region_source.raw_value}")            # Original value before validation
+
+# Check nested fields
+level_source = metadata.get_source("logging.level")
+if level_source:
+    print(f"Logging level from: {level_source.source}")
+
+# Iterate all field sources
+for field, source in metadata.per_field.items():
+    print(f"{field}: {source.source} ({source.source_path})")
+```
+
+**Source Types:**
+- `defaults` - Field default from Pydantic model
+- `global` - Global config file (`~/.config/costcutter/...`)
+- `project` - Project config file (`./costcutter.yaml` or `./config/...`)
+- `dotenv` - `.env` file in current directory
+- `env` - Environment variable (source_path shows `ENV:VARIABLE_NAME`)
+- `overrides` - Runtime overrides (source_path shows `runtime`)
+
+**Example output:**
+
+```
+dry_run: overrides (runtime)
+logging.level: env (ENV:COSTCUTTER_LOGGING__LEVEL)
+logging.enabled: defaults (None)
+aws.region: global (/home/user/.config/costcutter/costcutter.yaml)
+aws.services: project (/workspace/costcutter.yaml)
+aws.max_workers: env (ENV:COSTCUTTER_AWS__MAX_WORKERS)
+aws.profile: defaults (None)
+```
+
+## Common Validation Errors
+
+### Type Errors
+
+**❌ Error: Wrong type**
+```yaml
+aws:
+  max_workers: "eight"  # Should be integer
+```
+
+**Error message:**
+```
+ConfigValidationError: 1 validation error for Config
+aws.max_workers
+  Input should be a valid integer [type=int_type]
+```
+
+**✅ Fix:**
+```yaml
+aws:
+  max_workers: 8
+```
+
+### Constraint Violations
+
+**❌ Error: Out of bounds**
+```yaml
+aws:
+  max_workers: 200  # Must be <= 100
+```
+
+**Error message:**
+```
+ConfigValidationError: 1 validation error for Config
+aws.max_workers
+  Input should be less than or equal to 100 [type=less_than_equal]
+```
+
+**✅ Fix:**
+```yaml
+aws:
+  max_workers: 50
+```
+
+### Literal Type Errors
+
+**❌ Error: Invalid logging level**
+```yaml
+logging:
+  level: TRACE  # Must be DEBUG/INFO/WARNING/ERROR/CRITICAL
+```
+
+**Error message:**
+```
+ConfigValidationError: 1 validation error for Config
+logging.level
+  Input should be 'DEBUG', 'INFO', 'WARNING', 'ERROR' or 'CRITICAL' [type=literal_error]
+```
+
+**✅ Fix:**
+```yaml
+logging:
+  level: DEBUG
+```
+
+### Duplicate Values
+
+**❌ Error: Duplicate regions**
+```yaml
+aws:
+  region:
+    - us-east-1
+    - us-west-2
+    - us-east-1  # Duplicate
+```
+
+**Error message:**
+```
+ConfigValidationError: 1 validation error for Config
+aws.region
+  Value error, region list contains duplicate values [type=value_error]
+```
+
+**✅ Fix:**
+```yaml
+aws:
+  region:
+    - us-east-1
+    - us-west-2
+```
+
+### Empty Lists
+
+**❌ Error: Empty services**
+```yaml
+aws:
+  services: []  # Must have at least 1 service
+```
+
+**Error message:**
+```
+ConfigValidationError: 1 validation error for Config
+aws.services
+  List should have at least 1 item after validation [type=min_length]
+```
+
+**✅ Fix:**
+```yaml
+aws:
+  services:
+    - ec2
+```
+
+### Extra Fields (Typos)
+
+**❌ Error: Unknown field**
+```yaml
+aws:
+  regions: [us-east-1]  # Should be 'region' (singular)
+```
+
+**Error message:**
+```
+ConfigValidationError: 1 validation error for Config
+aws.regions
+  Extra inputs are not permitted [type=extra_forbidden]
+```
+
+**✅ Fix:**
+```yaml
+aws:
+  region: [us-east-1]
 ```
 
 ## Validation
 
-CostCutter validates configuration at startup:
+CostCutter performs comprehensive validation at startup using Pydantic v2:
 
-- **Config file format** - Must be `.yaml`, `.yml`, `.toml`, or `.json`
-- **Required fields** - All required fields must have values
-- **Type checking** - Values must match expected types
+1. **Type Validation** - All values must match declared types
+2. **Constraint Validation** - Numeric bounds (ge/le), string lengths, list sizes checked
+3. **Literal Validation** - Restricted values (logging level) enforced
+4. **Custom Validators** - Duplicates, unknown regions checked
+5. **Extra Field Rejection** - Unknown keys in config files are rejected (typo detection)
 
-**Invalid config example:**
+**When validation fails:**
+- CLI exits immediately with detailed error message
+- No AWS resources are modified
+- Error shows: field path, error type, expected value, source information, checked files
 
-```bash
-costcutter --config myconfig.txt
-# Error: Config file must be one of: .yaml, .yml, .toml, .json
-```
+**Validation happens at:**
+- Application startup (CLI or Python API)
+- Configuration reload
+- Any call to `load_config()`
+
+**Supported file formats:** `.yaml`, `.toml` (JSON and YML also work but not recommended)
 
 ## Troubleshooting
 
@@ -624,7 +1084,7 @@ costcutter --config myconfig.txt
 
 1. Verify which config sources are active
 2. Higher priority sources override lower ones
-3. Use `DEBUG` logging to see loaded values
+3. Use metadata tracking to see where each value comes from
 
 **Debug configuration:**
 
@@ -633,36 +1093,132 @@ from costcutter.config import load_config
 
 config = load_config()
 print(config.model_dump())  # See final merged config
+print(config.model_dump_json(indent=2))  # JSON format
+```
+
+**Check with metadata:**
+
+```python
+from utilityhub_config import load_settings
+from costcutter.config import Config
+
+config, metadata = load_settings(Config, app_name="costcutter", env_prefix="COSTCUTTER_")
+
+# See where each field came from
+for field in ["dry_run", "aws.region", "aws.services", "logging.level"]:
+    source = metadata.get_source(field)
+    if source:
+        print(f"{field}: {source.source} from {source.source_path}")
 ```
 
 ### Environment variables not working
 
 **Ensure correct syntax:**
 
-- Prefix: `COSTCUTTER_`
+- Prefix: `COSTCUTTER_` (case-insensitive but uppercase recommended)
 - Nesting: Use `__` (double underscore)
-- Case: Insensitive (but uppercase recommended)
+- Lists: Use YAML/JSON syntax with quotes
 
 **Test:**
 
 ```bash
+# Boolean
 export COSTCUTTER_DRY_RUN=false
-python -c "import os; from costcutter.config import load_config; print(load_config().dry_run)"
-# Should print: False
+
+# String
+export COSTCUTTER_LOGGING__LEVEL=DEBUG
+
+# List (YAML syntax, use quotes)
+export COSTCUTTER_AWS__REGION='["us-east-1", "us-west-2"]'
+export COSTCUTTER_AWS__SERVICES='["ec2", "s3"]'
+
+# Integer
+export COSTCUTTER_AWS__MAX_WORKERS=8
+
+# Verify
+python -c "from costcutter.config import load_config; c = load_config(); print(f'dry_run={c.dry_run}, region={c.aws.region}')"
 ```
 
-### Home config ignored
+### Validation errors
 
-**Check file exists and has correct extension:**
+**Understanding error messages:**
+
+```
+ConfigValidationError: Configuration validation failed
+
+2 validation errors for Config
+aws.max_workers
+  Input should be greater than or equal to 1 [type=greater_than_equal]
+logging.level
+  Input should be 'DEBUG', 'INFO', 'WARNING', 'ERROR' or 'CRITICAL' [type=literal_error]
+
+Checked files:
+  - ~/.config/costcutter/costcutter.yaml (found)
+  - ./costcutter.yaml (not found)
+
+Precedence: defaults → global → project → explicit → dotenv → env → overrides
+```
+
+**Error components:**
+1. **Field path** - `aws.max_workers`, `logging.level` (exact location of error)
+2. **Error type** - `greater_than_equal`, `literal_error` (what validation failed)
+3. **Checked files** - Shows which files were searched and found
+4. **Precedence** - Shows the merge order used
+
+**Common fixes:**
+- Check field name spelling (typos trigger `extra_forbidden`)
+- Verify value type matches expected (int vs string)
+- Check constraints (min/max values, list lengths)
+- For Literal fields, use exact allowed values
+- Remove duplicate values from lists
+
+### Config file discovery issues
+
+**Check file locations and names:**
 
 ```bash
-ls -la ~/.costcutter.*
+# Global config (either works)
+ls -la ~/.config/costcutter/costcutter.yaml
+ls -la ~/.config/costcutter/costcutter.toml
+
+# Project config (checked in order)
+ls -la ./costcutter.yaml
+ls -la ./costcutter.toml
+ls -la ./config/costcutter.yaml
+ls -la ./config/costcutter.toml
+
+# Dotenv
+ls -la ./.env
 ```
 
-Supported: `.yaml`, `.yml`, `.toml`, `.json`
+**Note:** Old locations (`~/.costcutter.yaml`, `~/.costcutter.json`) are NOT supported. Use new locations above.
+
+### Unknown AWS region warnings
+
+**Warning (not error):**
+```yaml
+aws:
+  region:
+    - us-future-1  # Warning: Unknown region, but accepted
+```
+
+**Output:**
+```
+UserWarning: Unknown AWS region(s): ['us-future-1'].
+Known regions: ['af-south-1', 'ap-east-1', ..., 'us-west-2'].
+If using a new AWS region, this warning can be ignored.
+```
+
+**This is intentional** - forward compatibility for new AWS regions. Execution continues normally.
+
+**To suppress warnings:**
+- Verify region name is correct (check for typos)
+- If using opt-in region, ensure it's enabled in your AWS account
+- If using new region, warning can be safely ignored
 
 ## Next Steps
 
 - [How It Works](./how-it-works.md) - Understand execution flow
 - [Getting Started](./getting-started.md) - Quick start guide
 - [Troubleshooting](./troubleshooting.md) - Common issues
+- [utilityhub_config docs](https://utilityhub.hyperoot.dev/packages/utilityhub_config/) - Configuration loading library

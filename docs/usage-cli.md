@@ -16,9 +16,9 @@ All modes expose the same options.
 | ---- | ----------- |
 | `--dry-run` | Force dry run mode even if the config disables it. |
 | `--no-dry-run` | Disable dry run for the current invocation. |
-| `--config PATH` | Load an explicit YAML, YML, TOML, or JSON file. |
+| `--config PATH` | Load an explicit config file (YAML/TOML/JSON/YML). |
 
-Dry run is enabled by default. Use `--no-dry-run` only when you intend to delete resources.
+Dry run is enabled by default (`dry_run: true` in config). Use `--no-dry-run` only when you intend to delete resources.
 
 ## Typical Workflows
 
@@ -31,22 +31,30 @@ uvx costcutter --help
 ### Preview deletions (default)
 
 ```sh
-uvx costcutter --dry-run --config ./costcutter.yaml
+# Uses auto-discovered config or defaults
+uvx costcutter
+
+# Or explicitly enable dry-run
+uvx costcutter --dry-run
 ```
 
 ### Execute a cleanup
 
 ```sh
-uvx costcutter --no-dry-run --config ./costcutter.yaml
+uvx costcutter --no-dry-run
 ```
 
-### Use the default config and overrides from the home directory
+### Use custom config file location
 
 ```sh
-costcutter --dry-run
+# Use an explicit config file path
+uvx costcutter --config /path/to/production.yaml
+
+# Auto-discovery still works
+uvx costcutter  # Uses ./costcutter.yaml or ~/.config/costcutter/costcutter.yaml
 ```
 
-When `--config` is omitted the loader merges the bundled defaults, any `~/.costcutter.*` file, environment variables with the `COSTCUTTER_` prefix, and the CLI flags shown above.
+Configuration is automatically discovered from multiple locations using [utilityhub_config](https://utilityhub.hyperoot.dev/packages/utilityhub_config/). See [Configuration Reference](./guide/config-reference.md) for precedence order and all options.
 
 ## What You Will See
 
@@ -58,8 +66,10 @@ Logs are written to the directory from `logging.dir` when logging is enabled. Th
 
 ## Troubleshooting Basics
 
-- Invalid file extensions on `--config` raise a Typer validation error before the run starts
-- Keyboard interrupts stop orchestration gracefully and still show a final summary
-- Enable debug logs by setting `logging.level` to `DEBUG` in the config or via `COSTCUTTER_LOGGING__LEVEL=DEBUG`
+- **Configuration validation errors** - Invalid config (wrong types, constraint violations, duplicate regions/services, unknown fields) causes immediate failure with detailed error messages showing field path, error type, and checked files. See [Configuration Reference](./guide/config-reference.md#common-validation-errors) for examples.
+- **File discovery** - Config files are auto-discovered from `~/.config/costcutter/`, `./`, and `./config/`. Old locations (`~/.costcutter.*`) are not supported.
+- **Keyboard interrupts** - Stop orchestration gracefully and still show a final summary
+- **Debug logs** - Enable by setting `logging.level: DEBUG` in config or via `COSTCUTTER_LOGGING__LEVEL=DEBUG`
+- **Region warnings** - Unknown AWS regions generate warnings but execution continues (forward compatibility)
 
-Consult [Troubleshooting](/guide/troubleshooting.md) for deeper diagnostics and escalation paths.
+Consult [Troubleshooting](./guide/troubleshooting.md) for deeper diagnostics and escalation paths.

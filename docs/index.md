@@ -22,8 +22,8 @@ features:
     title: Fast AWS Resource Cleanup
     details: Scan and clean up EC2 instances, Lambda functions, and more with a single command. Supports dry-run mode for safe testing.
   - icon: 🛠️
-    title: Layered Configuration
-    details: Merge defaults, home overrides, explicit files, environment variables, and CLI flags without boilerplate.
+    title: Type-Safe Configuration
+    details: Multi-source configuration with Pydantic validation. Auto-discovers files from global/project locations. Fails fast with detailed error messages.
   - icon: 📊
     title: Live Terminal View
     details: Watch events stream in through a Rich powered table and review a summary once orchestration completes.

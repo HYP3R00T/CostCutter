@@ -124,12 +124,12 @@ def test_catalog_buckets_and_cleanup_buckets(monkeypatch):
             return C()
 
     session = DummySession()
-    names = buckets.catalog_buckets(session, "r")
+    names = buckets.catalog_buckets(session, "r")  # type: ignore[arg-type]
     assert "one" in names and "two" in names
 
     # monkeypatch cleanup_bucket so cleanup_buckets runs quickly
     monkeypatch.setattr("costcutter.services.s3.buckets.cleanup_bucket", lambda *a, **k: None)
-    buckets.cleanup_buckets(session=session, region="r", dry_run=True, max_workers=1)
+    buckets.cleanup_buckets(session=session, region="r", dry_run=True, max_workers=1)  # type: ignore[arg-type]
 
 
 def test_cleanup_bucket_dry_run(monkeypatch):
@@ -148,7 +148,7 @@ def test_cleanup_bucket_dry_run(monkeypatch):
     monkeypatch.setattr(
         "costcutter.services.s3.buckets.get_reporter", lambda: SimpleNamespace(record=lambda *a, **k: None)
     )
-    buckets.cleanup_bucket(session=DummySession(), region="r", bucket_name="b", dry_run=True)
+    buckets.cleanup_bucket(session=DummySession(), region="r", bucket_name="b", dry_run=True)  # type: ignore[arg-type]
 
 
 def test_catalog_objects_clienterror():
@@ -208,7 +208,7 @@ def test_catalog_buckets_no_get_bucket_location_and_none():
 
             return C()
 
-    names = buckets.catalog_buckets(DummySession1(), "r")
+    names = buckets.catalog_buckets(DummySession1(), "r")  # type: ignore[arg-type]
     assert "one" in names and "two" in names
 
     # Client where get_bucket_location returns None should map to us-east-1
@@ -223,7 +223,7 @@ def test_catalog_buckets_no_get_bucket_location_and_none():
 
             return C()
 
-    names2 = buckets.catalog_buckets(DummySession2(), "us-east-1")
+    names2 = buckets.catalog_buckets(DummySession2(), "us-east-1")  # type: ignore[arg-type]
     assert "east" in names2
 
 
@@ -277,7 +277,7 @@ def test_cleanup_bucket_non_dry_run_success(monkeypatch):
         def client(self, service_name=None, region_name=None):
             return client
 
-    buckets.cleanup_bucket(session=DummySession(), region="r", bucket_name="buck", dry_run=False)
+    buckets.cleanup_bucket(session=DummySession(), region="r", bucket_name="buck", dry_run=False)  # type: ignore[arg-type]
 
     assert client.bucket_deleted is True
     assert client.deleted_payload is not None
@@ -295,4 +295,4 @@ def test_cleanup_buckets_propagates_exceptions(monkeypatch):
     monkeypatch.setattr("costcutter.services.s3.buckets.cleanup_bucket", raiseer)
 
     with pytest.raises(RuntimeError):
-        buckets.cleanup_buckets(session=object(), region="r", dry_run=True, max_workers=1)
+        buckets.cleanup_buckets(session=object(), region="r", dry_run=True, max_workers=1)  # type: ignore[arg-type]

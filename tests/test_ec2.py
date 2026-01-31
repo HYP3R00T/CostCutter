@@ -20,7 +20,7 @@ def test_cleanup_ec2_calls_all_handlers(monkeypatch):
         pass
 
     sess = DummySession()
-    ec2.cleanup_ec2(sess, "us-east-1", dry_run=False, max_workers=5)
+    ec2.cleanup_ec2(sess, "us-east-1", dry_run=False, max_workers=5)  # type: ignore[arg-type]
 
     # Both handlers should have been called once
     assert {c[0] for c in calls} == {"one", "two"}
@@ -44,7 +44,7 @@ def test_cleanup_ec2_uses_default_max_workers(monkeypatch):
     class DummySession:
         pass
 
-    ec2.cleanup_ec2(DummySession(), "eu-west-1")
+    ec2.cleanup_ec2(DummySession(), "eu-west-1")  # type: ignore[arg-type]
     assert seen == [1]
 
 
@@ -60,4 +60,4 @@ def test_cleanup_ec2_propagates_handler_exception(monkeypatch):
         pass
 
     with pytest.raises(RuntimeError):
-        ec2.cleanup_ec2(DummySession(), "ap-south-1", dry_run=True, max_workers=2)
+        ec2.cleanup_ec2(DummySession(), "ap-south-1", dry_run=True, max_workers=2)  # type: ignore[arg-type]

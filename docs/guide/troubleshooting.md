@@ -2,6 +2,125 @@
 
 Common issues encountered when running CostCutter and how to resolve them.
 
+## Configuration issues
+
+### Configuration validation errors
+
+**Symptoms:** CLI exits immediately with `ConfigValidationError` showing field paths, error types, and checked files.
+
+**Common causes:**
+
+1. **Type errors** - Wrong value type (string instead of integer, etc.)
+2. **Constraint violations** - Values out of bounds (max_workers > 100, etc.)
+3. **Literal type errors** - Invalid logging level (TRACE instead of DEBUG/INFO/WARNING/ERROR/CRITICAL)
+4. **Duplicate values** - Duplicate regions or services in lists
+5. **Empty lists** - services or region lists with no items
+6. **Extra fields** - Typos or unknown field names (catches `regions:` instead of `region:`)
+
+**Fixes:**
+
+See [Configuration Reference - Common Validation Errors](./config-reference.md#common-validation-errors) for detailed examples and fixes for each error type.
+
+**Debug validation:**
+
+```python
+from costcutter.config import load_config
+from utilityhub_config.errors import ConfigValidationError
+
+try:
+    config = load_config()
+except ConfigValidationError as e:
+    print(f"Validation failed: {e}")
+    # Shows: field paths, errors, checked files, precedence chain
+```
+
+### Config file not discovered
+
+**Symptoms:** Config values not taking effect even though file exists.
+
+**Fixes:**
+
+1. **Check file location and name:**
+
+   ```bash
+   # Global config (either works)
+   ls -la ~/.config/costcutter/costcutter.yaml
+   ls -la ~/.config/costcutter/costcutter.toml
+
+   # Project config (checked in order)
+   ls -la ./costcutter.yaml
+   ls -la ./costcutter.toml
+   ls -la ./config/costcutter.yaml
+   ls -la ./config/costcutter.toml
+   ```
+
+2. **Old locations NOT supported:**
+   - `~/.costcutter.yaml` (old) → Use `~/.config/costcutter/costcutter.yaml`
+   - `~/.costcutter.json` (old) → Not supported, use YAML or TOML
+
+3. **Check file format:**
+   - Supported: `.yaml`, `.toml`
+   - Use YAML parser to validate syntax: `python -c "import yaml; yaml.safe_load(open('costcutter.yaml'))"`
+
+4. **Verify precedence:**
+   - Environment variables override config files
+   - Runtime overrides override everything
+   - See [Configuration Reference - Precedence](./config-reference.md#precedence-example)
+
+### Environment variables not working
+
+**Symptoms:** Environment variable values ignored.
+
+**Fixes:**
+
+1. **Check syntax:**
+   ```bash
+   # Correct
+   export COSTCUTTER_DRY_RUN=false
+   export COSTCUTTER_LOGGING__LEVEL=DEBUG
+   export COSTCUTTER_AWS__REGION='["us-east-1", "us-west-2"]'
+   export COSTCUTTER_AWS__MAX_WORKERS=8
+
+   # Wrong (missing COSTCUTTER_ prefix)
+   export DRY_RUN=false  # ❌
+
+   # Wrong (single underscore for nesting)
+   export COSTCUTTER_AWS_REGION='["us-east-1"]'  # ❌ Should be AWS__REGION
+   ```
+
+2. **List syntax:**
+   - Use YAML/JSON format with quotes: `'["item1", "item2"]'`
+   - Don't use shell array syntax
+
+3. **Test:**
+   ```bash
+   export COSTCUTTER_DRY_RUN=false
+   python -c "from costcutter.config import load_config; print(load_config().dry_run)"
+   # Should print: False
+   ```
+
+### Unknown AWS region warnings
+
+**Symptoms:** Warning messages about unknown AWS regions but execution continues.
+
+**Example:**
+```
+UserWarning: Unknown AWS region(s): ['us-future-1'].
+Known regions: ['af-south-1', 'ap-east-1', ..., 'us-west-2'].
+If using a new AWS region, this warning can be ignored.
+```
+
+**This is intentional** - forward compatibility for newly released AWS regions.
+
+**Fixes:**
+
+- **Typo check:** Verify region name spelling (common: `us-est-1` instead of `us-east-1`)
+- **Opt-in regions:** Some regions require opt-in via AWS Console (ap-east-1, me-south-1, etc.)
+- **New regions:** If using a region released after January 2026, warning can be ignored
+- **Suppress warnings:** If confident region is correct, use Python's warning filters
+
+**Valid regions (34 total):** See [Configuration Reference - AWS Region Validation](./config-reference.md#aws-region-validation)
+
 ## Common issues
 
 ### Permission errors
