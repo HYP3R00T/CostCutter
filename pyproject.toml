@@ -5,7 +5,7 @@ description = "A kill-switch for AWS that automatically deletes resources when s
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "hyperoot", email = "rajesh@hyperoot.dev" }]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.40.1",
     "pyfiglet>=1.0.3",
@@ -36,6 +36,7 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: System :: Systems Administration",
