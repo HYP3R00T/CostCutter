@@ -38,12 +38,12 @@ def test_get_account_id():
     session = DummySession()
     from costcutter.services.common import _get_account_id
 
-    assert _get_account_id(session) == "123456789012"
+    assert _get_account_id(session) == "123456789012"  # type: ignore[arg-type]
 
 
 def test_catalog_environments():
     session = DummySession()
-    env_names = environments.catalog_environments(session, "us-east-1")
+    env_names = environments.catalog_environments(session, "us-east-1")  # type: ignore[arg-type]
     assert "test-env-1" in env_names
     assert "test-env-2" in env_names
     assert len(env_names) == 2
@@ -55,7 +55,7 @@ def test_cleanup_environment_dry_run(monkeypatch):
         "costcutter.services.elasticbeanstalk.environments.get_reporter",
         lambda: type("R", (), {"record": lambda *a, **k: None})(),
     )
-    environments.cleanup_environment(session, "us-east-1", "test-env-1", dry_run=True)
+    environments.cleanup_environment(session, "us-east-1", "test-env-1", dry_run=True)  # type: ignore[arg-type]
 
 
 def test_cleanup_environment_actual(monkeypatch):
@@ -64,7 +64,7 @@ def test_cleanup_environment_actual(monkeypatch):
         "costcutter.services.elasticbeanstalk.environments.get_reporter",
         lambda: type("R", (), {"record": lambda *a, **k: None})(),
     )
-    environments.cleanup_environment(session, "us-east-1", "test-env-1", dry_run=False)
+    environments.cleanup_environment(session, "us-east-1", "test-env-1", dry_run=False)  # type: ignore[arg-type]
 
 
 def test_cleanup_environments(monkeypatch):
@@ -77,4 +77,4 @@ def test_cleanup_environments(monkeypatch):
         "costcutter.services.elasticbeanstalk.environments.cleanup_environment",
         lambda *args, **kwargs: None,
     )
-    environments.cleanup_environments(session, "us-east-1", dry_run=True, max_workers=1)
+    environments.cleanup_environments(session, "us-east-1", dry_run=True, max_workers=1)  # type: ignore[arg-type]

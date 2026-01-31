@@ -26,7 +26,7 @@ def test_cleanup_elasticbeanstalk_calls_all_handlers(monkeypatch):
         pass
 
     sess = DummySession()
-    elasticbeanstalk.cleanup_elasticbeanstalk(sess, "us-east-1", dry_run=False, max_workers=5)
+    elasticbeanstalk.cleanup_elasticbeanstalk(sess, "us-east-1", dry_run=False, max_workers=5)  # type: ignore[arg-type]
 
     # Both handlers should have been called once
     assert len(calls) == 2
@@ -64,5 +64,5 @@ def test_cleanup_elasticbeanstalk_uses_default_max_workers(monkeypatch):
     class DummySession:
         pass
 
-    elasticbeanstalk.cleanup_elasticbeanstalk(DummySession(), "eu-west-1")
+    elasticbeanstalk.cleanup_elasticbeanstalk(DummySession(), "eu-west-1")  # type: ignore[arg-type]
     assert seen == [1, 1]  # Both handlers called with default value

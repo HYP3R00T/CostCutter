@@ -27,13 +27,13 @@ class DummyReporter:
 def test_render_table_empty():
     reporter = DummyReporter()
     table = _render_table(reporter, dry_run=True)
-    assert table.title.startswith("CostCutter")
+    assert str(table.title).startswith("CostCutter")
 
 
 def test_render_summary_table_empty():
     reporter = DummyReporter()
     table = _render_summary_table(reporter, dry_run=True)
-    assert table.title.startswith("CostCutter")
+    assert str(table.title).startswith("CostCutter")
 
 
 def test_run_cli(monkeypatch):
@@ -56,7 +56,7 @@ def test_render_table_placeholder_when_empty():
             return []
 
     table = _render_table(R(), dry_run=True)
-    assert table.title.startswith("CostCutter")
+    assert str(table.title).startswith("CostCutter")
 
 
 def test_render_table_meta_exception():
@@ -76,7 +76,7 @@ def test_render_table_meta_exception():
             return [E()]
 
     table = _render_table(R(), dry_run=False)
-    assert table.title.startswith("CostCutter")
+    assert str(table.title).startswith("CostCutter")
 
 
 def test_render_table_tail_caption():

@@ -18,7 +18,7 @@ def test_cleanup_s3_calls_all_handlers(monkeypatch):
     monkeypatch.setattr(module, "_HANDLERS", {"h1": handler1, "h2": handler2})
 
     fake_session = SimpleNamespace()
-    result = module.cleanup_s3(session=fake_session, region="eu-west-1", dry_run=False, max_workers=5)
+    result = module.cleanup_s3(session=fake_session, region="eu-west-1", dry_run=False, max_workers=5)  # type: ignore[arg-type]
 
     assert result is None
     assert ("h1", fake_session, "eu-west-1", False, 5) in calls
@@ -33,7 +33,7 @@ def test_cleanup_s3_with_empty_handlers(monkeypatch):
 
     fake_session = SimpleNamespace()
     # should not raise
-    assert module.cleanup_s3(session=fake_session, region="us-west-2") is None
+    assert module.cleanup_s3(session=fake_session, region="us-west-2") is None  # type: ignore[arg-type]
 
 
 def test_cleanup_s3_passes_default_args(monkeypatch):
@@ -52,7 +52,7 @@ def test_cleanup_s3_passes_default_args(monkeypatch):
     monkeypatch.setattr(module, "_HANDLERS", {"only": handler})
 
     fake_session = SimpleNamespace(name="s")
-    module.cleanup_s3(session=fake_session, region="ap-south-1")
+    module.cleanup_s3(session=fake_session, region="ap-south-1")  # type: ignore[arg-type]
 
     assert recorded["session"] is fake_session
     assert recorded["region"] == "ap-south-1"

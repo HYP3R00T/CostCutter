@@ -35,12 +35,12 @@ def test_get_account_id():
     session = DummySession()
     from costcutter.services.common import _get_account_id
 
-    assert _get_account_id(session) == "123456789012"
+    assert _get_account_id(session) == "123456789012"  # type: ignore[arg-type]
 
 
 def test_catalog_instances():
     session = DummySession()
-    arns = instances.catalog_instances(session, "us-east-1")
+    arns = instances.catalog_instances(session, "us-east-1")  # type: ignore[arg-type]
     assert "i-123" in arns
 
 
@@ -49,11 +49,11 @@ def test_cleanup_instance(monkeypatch):
     monkeypatch.setattr(
         "costcutter.services.ec2.instances.get_reporter", lambda: type("R", (), {"record": lambda *a, **k: None})()
     )
-    instances.cleanup_instance(session, "us-east-1", "i-123", dry_run=True)
+    instances.cleanup_instance(session, "us-east-1", "i-123", dry_run=True)  # type: ignore[arg-type]
 
 
 def test_cleanup_instances(monkeypatch):
     session = DummySession()
     monkeypatch.setattr("costcutter.services.ec2.instances.catalog_instances", lambda *args, **kwargs: ["i-123"])
     monkeypatch.setattr("costcutter.services.ec2.instances.cleanup_instance", lambda *args, **kwargs: None)
-    instances.cleanup_instances(session, "us-east-1", dry_run=True, max_workers=1)
+    instances.cleanup_instances(session, "us-east-1", dry_run=True, max_workers=1)  # type: ignore[arg-type]

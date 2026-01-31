@@ -32,12 +32,12 @@ def test_get_account_id():
     session = DummySession()
     from costcutter.services.common import _get_account_id
 
-    assert _get_account_id(session) == "123456789012"
+    assert _get_account_id(session) == "123456789012"  # type: ignore[arg-type]
 
 
 def test_catalog_applications():
     session = DummySession()
-    app_names = applications.catalog_applications(session, "us-east-1")
+    app_names = applications.catalog_applications(session, "us-east-1")  # type: ignore[arg-type]
     assert "test-app-1" in app_names
     assert "test-app-2" in app_names
     assert len(app_names) == 2
@@ -49,7 +49,7 @@ def test_cleanup_application_dry_run(monkeypatch):
         "costcutter.services.elasticbeanstalk.applications.get_reporter",
         lambda: type("R", (), {"record": lambda *a, **k: None})(),
     )
-    applications.cleanup_application(session, "us-east-1", "test-app-1", dry_run=True)
+    applications.cleanup_application(session, "us-east-1", "test-app-1", dry_run=True)  # type: ignore[arg-type]
 
 
 def test_cleanup_application_actual(monkeypatch):
@@ -58,7 +58,7 @@ def test_cleanup_application_actual(monkeypatch):
         "costcutter.services.elasticbeanstalk.applications.get_reporter",
         lambda: type("R", (), {"record": lambda *a, **k: None})(),
     )
-    applications.cleanup_application(session, "us-east-1", "test-app-1", dry_run=False)
+    applications.cleanup_application(session, "us-east-1", "test-app-1", dry_run=False)  # type: ignore[arg-type]
 
 
 def test_cleanup_applications(monkeypatch):
@@ -71,4 +71,4 @@ def test_cleanup_applications(monkeypatch):
         "costcutter.services.elasticbeanstalk.applications.cleanup_application",
         lambda *args, **kwargs: None,
     )
-    applications.cleanup_applications(session, "us-east-1", dry_run=True, max_workers=1)
+    applications.cleanup_applications(session, "us-east-1", dry_run=True, max_workers=1)  # type: ignore[arg-type]
