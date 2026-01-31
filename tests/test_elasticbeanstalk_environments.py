@@ -30,6 +30,11 @@ class DummySession:
 
 
 def test_get_account_id():
+    # Reset the cache before test
+    import costcutter.services.common
+
+    costcutter.services.common._ACCOUNT_ID = None
+
     session = DummySession()
     from costcutter.services.common import _get_account_id
 
