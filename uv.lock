@@ -71,7 +71,7 @@ wheels = [
 
 [[package]]
 name = "costcutter"
-version = "0.1.4a2"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

@@ -1,6 +1,6 @@
 [project]
 name = "costcutter"
-version = "0.1.4a2"
+version = "0.1.4"
 description = "A kill-switch for AWS that automatically deletes resources when spending limits are breached."
 readme = "README.md"
 license = { file = "LICENSE" }
