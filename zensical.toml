@@ -73,9 +73,9 @@ toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
 [project.theme.icon]
-logo = "fontawesome/solid/wrench"
-previous = "fontawesome/solid/angle-left"
-next = "fontawesome/solid/angle-right"
+logo = "lucide/cloud-alert"
+previous = "lucide/arrow-left"
+next = "lucide/arrow-right"
 
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.pymdownx.details]
