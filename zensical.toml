@@ -2,42 +2,87 @@
 site_name = "CostCutter"
 site_url = "https://costcutter.dev"
 site_description = "A kill-switch for AWS - Scan and clean up AWS resources with a single command"
-site_author = "CostCutter Contributors"
 docs_dir = "docs"
 site_dir = "site"
-copyright = "&copy; 2025 CostCutter Contributors"
+repo_name = "HYP3R00T/CostCutter"
+repo_url = "https://github.com/HYP3R00T/CostCutter"
+site_author = "Rajesh Das"
+copyright = """
+Copyright &copy; 2026 Rajesh Das
+"""
 
 # Navigation structure
 nav = [
     { Home = "index.md" },
-    { "What is CostCutter?" = "guide/what-is-costcutter.md" },
-    { Guide = [
-        { "Getting Started" = "guide/getting-started.md" },
-        { "AWS Terraform Setup" = "guide/getting-started-terraform.md" },
-        { "Configuration Reference" = "guide/config-reference.md" },
-        { "How It Works" = "guide/how-it-works.md" },
-        { "Supported Services" = "guide/supported-services.md" },
-        { "Troubleshooting" = "guide/troubleshooting.md" },
+    { "Getting Started" = [
+        { "Overview" = "getting-started/index.md" },
+        { "Installation" = "getting-started/installation.md" },
+        { "Quick Start" = "getting-started/quickstart.md" },
     ] },
-    { Usage = [
-        { "CLI Usage" = "usage-cli.md" },
-        { "Terraform Usage" = "usage-terraform.md" },
+    { "Configuration" = [
+        { "Overview" = "configuration/index.md" },
+        { "File Formats" = "configuration/file-formats.md" },
+        { "Reference" = "configuration/reference.md" },
     ] },
-    { Architecture = [
-        { "Dependency Scaling" = "architecture/dependency-scaling.md" },
-        { "How It Works" = "guide/architecture.md" },
+    { "Services" = [
+        { "Overview" = "services/index.md" },
+        { "EC2" = "services/ec2.md" },
+        { "Elastic Beanstalk" = "services/elasticbeanstalk.md" },
+        { "S3" = "services/s3.md" },
     ] },
-    { Contributing = [
-        { "Overview" = "contributing/index.md" },
-        { "Architecture" = "contributing/architecture.md" },
-        { "Code Standards" = "contributing/code-standards.md" },
-        { "Code Structure" = "contributing/code-structure.md" },
-        { "Testing" = "contributing/testing.md" },
-        { "Adding a Service" = "contributing/adding-service.md" },
-        { "Adding Subresources" = "contributing/adding-subresources.md" },
-        { "Submission Guide" = "contributing/submission.md" },
+    { "Concepts" = [
+        { "How It Works" = "concepts/how-it-works.md" },
     ] },
+    { "Contributing" = "contributing.md" },
 ]
 
 [project.theme]
-variant = "modern"
+language = "en"
+features = [
+    "announce.dismiss",
+    "content.action.edit",
+    "content.action.view",
+    "content.code.annotate",
+    "content.code.copy",
+    "content.code.select",
+    "content.footnote.tooltips",
+    "content.tabs.link",
+    "content.tooltips",
+    "navigation.footer",
+    "navigation.indexes",
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.instant.progress",
+    "navigation.path",
+    "navigation.sections",
+    "navigation.tabs",
+    "navigation.tabs.sticky",
+    "navigation.top",
+    "navigation.tracking",
+    "search.highlight",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.theme.icon]
+logo = "lucide/cloud-alert"
+previous = "lucide/arrow-left"
+next = "lucide/arrow-right"
+
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+    { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
