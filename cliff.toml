@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 """
 body = """
 {% if version %}\
@@ -41,20 +42,27 @@ commit_preprocessors = [{ pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" }]
 commit_parsers = [
     { message = "^feat", group = "<!-- 0 -->Features" },
     { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
-    { message = "^doc", group = "<!-- 3 -->Documentation" },
-    { message = "^perf", group = "<!-- 4 -->Performance" },
-    { message = "^refactor", group = "<!-- 2 -->Refactor" },
-    { message = "^style", group = "<!-- 5 -->Styling" },
-    { message = "^test", group = "<!-- 6 -->Testing" },
+    { message = "^perf", group = "<!-- 2 -->Performance" },
+    { body = ".*security", group = "<!-- 3 -->Security" },
+    { message = "^revert", group = "<!-- 4 -->Revert" },
+
+    # Skip internal development commits
     { message = "^chore\\(release\\):", skip = true },
+    { message = "^chore\\(version\\):", skip = true },
     { message = "^chore\\(deps\\)", skip = true },
-    { message = "^chore", group = "<!-- 7 -->Miscellaneous Tasks" },
-    { body = ".*security", group = "<!-- 8 -->Security" },
-    { message = "^revert", group = "<!-- 9 -->Revert" },
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^docs", skip = true },
+    { message = "^doc", skip = true },
+    { message = "^style", skip = true },
+    { message = "^refactor", skip = true },
+    { message = "^test", skip = true },
+    { message = "^build", skip = true },
+    { message = "^workflow", skip = true },
 ]
 
 protect_breaking_commits = false
 filter_commits = false
-tag_pattern = ".*-v[0-9].*"
+tag_pattern = "v[0-9]+.*"
 topo_order = false
 sort_commits = "oldest"
