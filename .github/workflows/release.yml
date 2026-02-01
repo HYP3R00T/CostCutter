@@ -18,12 +18,17 @@ on:
           - post
           - dev
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -39,21 +44,22 @@ jobs:
         with:
           install: true
 
-      - name: Sync dependencies
-        run: uv sync --locked
+      # Install tools defined in .mise.toml (sniff, git-cliff, etc.)
+      - name: Install tools
+        run: mise install
 
       - name: Bump version
         id: version
         run: |
           uv version --bump ${{ inputs.bump }}
           VERSION=$(uv version --short)
-          echo "new_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "new_version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
         run: |
           git cliff \
             --tag "v${{ steps.version.outputs.new_version }}" \
-            --output "CHANGELOG.md"
+            --output CHANGELOG.md
 
       - name: Build package
         run: uv build
@@ -64,19 +70,22 @@ jobs:
         run: uv publish
 
       - name: Generate requirements.txt
-        run: uv export --frozen --output-file=requirements.txt
+        run: uv export --frozen --output-file requirements.txt
 
       - name: Create release branch and push changes
         id: release_branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           BRANCH="release/v${{ steps.version.outputs.new_version }}"
           git checkout -b "$BRANCH"
-          git add pyproject.toml CHANGELOG.md uv.lock requirements.txt
+
+          git add pyproject.toml uv.lock CHANGELOG.md requirements.txt
           git commit -m "chore(release): v${{ steps.version.outputs.new_version }}"
           git push origin "$BRANCH"
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v5
