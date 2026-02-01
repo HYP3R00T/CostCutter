@@ -1,33 +1,63 @@
----
-# https://vitepress.dev/reference/default-theme-home-page
-layout: home
+# CostCutter
 
-hero:
-  name: "Cost Cutter"
-  #   text: "A kill-switch for AWS"
-  tagline: "A kill-switch for AWS"
-  actions:
-    - theme: brand
-      text: What is CostCutter?
-      link: /guide/what-is-costcutter
-    - theme: alt
-      text: Configure It
-      link: /guide/config-reference
-    - theme: alt
-      text: GitHub
-      link: https://github.com/HYP3R00T/costcutter
+A kill-switch for AWS. Scan and clean up resources across regions with a single command.
 
-features:
-  - icon: ⚡
-    title: Fast AWS Resource Cleanup
-    details: Scan and clean up EC2 instances, Lambda functions, and more with a single command. Supports dry-run mode for safe testing.
-  - icon: 🛠️
-    title: Type-Safe Configuration
-    details: Multi-source configuration with Pydantic validation. Auto-discovers files from global/project locations. Fails fast with detailed error messages.
-  - icon: 📊
-    title: Live Terminal View
-    details: Watch events stream in through a Rich powered table and review a summary once orchestration completes.
-  - icon: 🔒
-    title: Credential Flexibility
-    details: Reuse profiles, shared credential files, or explicit keys while keeping secrets out of the repository.
----
+!!! danger "Destructive Tool"
+    CostCutter **permanently deletes AWS resources**. This cannot be undone. Always run with `--dry-run` first and use only in sandbox/dev environments.
+
+## What Is CostCutter?
+
+CostCutter is an automated cleanup tool that scans your AWS account and deletes resources to prevent unexpected costs. It's designed as an emergency "kill switch" for:
+
+- 🎓 **Students** learning AWS who fear accidental charges
+- 🧪 **Experimenters** testing services without financial risk
+- 🏖️ **Sandbox environments** that need automatic teardown
+- 🚀 **Hackathons** where resources must be cleaned up after events
+
+## Quick Example
+
+```bash
+# Preview what would be deleted (safe)
+costcutter --dry-run
+
+# Actually delete resources (irreversible!)
+costcutter --no-dry-run
+```
+
+## Documentation
+
+### Getting Started
+
+New to CostCutter? Start here.
+
+- [Installation](getting-started/installation.md) - Install via uvx, pip, or virtual environment
+- [Quick Start](getting-started/quickstart.md) - Run your first dry-run in 2 minutes
+
+### Configuration
+
+Customize CostCutter's behavior.
+
+- [Configuration Overview](configuration/index.md) - How configuration works
+- [File Formats](configuration/file-formats.md) - YAML, TOML, JSON examples
+- [Reference](configuration/reference.md) - All configuration options
+
+### Services
+
+What resources CostCutter can delete.
+
+- [Services Overview](services/index.md) - What CostCutter does and doesn't do
+- [EC2](services/ec2.md) - Instances, volumes, snapshots, IPs, keys, security groups
+- [Elastic Beanstalk](services/elasticbeanstalk.md) - Environments and applications
+- [S3](services/s3.md) - Buckets and all objects
+
+### Concepts
+
+Understand how CostCutter works.
+
+- [How It Works](concepts/how-it-works.md) - Dependency graph, execution model, parallelism
+
+### Contributing
+
+Help improve CostCutter.
+
+- [Contributing Guide](contributing.md) - Setup, adding services, pull requests
