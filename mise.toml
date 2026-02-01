@@ -44,3 +44,11 @@ run = "uv run ruff format ."
 [tasks.fix]
 description = "Auto-fix issues with ruff and format"
 run = ["uv run ruff check --fix .", "uv run ruff format ."]
+
+[tasks.changelog]
+description = "Update changelog"
+run = ["git cliff --config cliff.toml -o CHANGELOG.md"]
+
+[tasks.docs]
+description = "Run zensical docs"
+run = ["uv run zensical serve"]
