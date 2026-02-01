@@ -3,9 +3,6 @@ python = "3.12"
 uv = "latest"
 pre-commit = "latest"
 aws-cli = "2.33.12"
-node = "lts"
-"pnpm" = "latest"
-prettier = "latest"
 "git-cliff" = "latest"
 
 [settings]
@@ -19,7 +16,6 @@ enter = "bash ./scripts/enter_project.sh"
 
 [env]
 UV_LINK_MODE = "copy"
-_.path = ['{{config_root}}/node_modules/.bin']
 
 [tasks.cc]
 description = "Run the costcutter app"
@@ -48,7 +44,3 @@ run = "uv run ruff format ."
 [tasks.fix]
 description = "Auto-fix issues with ruff and format"
 run = ["uv run ruff check --fix .", "uv run ruff format ."]
-
-[tasks.docs]
-description = "Docs dev Mode"
-run = "vitepress dev docs --host 0.0.0.0 --port 5555 --cors"
