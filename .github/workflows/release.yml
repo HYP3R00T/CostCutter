@@ -45,18 +45,28 @@ jobs:
           python-version-file: ".python-version"
 
       # Install uv for package management and publishing
+      # Cache UV's dependency cache to speed up future runs
       - name: Install uv
         uses: astral-sh/setup-uv@v7.2.1
-
-      # Install mise for managing additional development tools
-      - name: Install mise
-        uses: jdx/mise-action@v3.6.1
         with:
-          install: true
+          enable-cache: true
 
-      # Install tools defined in .mise.toml (git-cliff for changelog, etc.)
-      - name: Install tools
-        run: mise install
+      # Cache the virtual environment to avoid recreating it
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      # Create or restore virtual environment
+      # uv will automatically use the cached .venv if it exists
+      - name: Create virtual environment
+        run: |
+          uv venv --python-preference managed
+        env:
+          VIRTUAL_ENV: .venv
 
       # Bump the package version in pyproject.toml
       # --no-sync: Skip syncing dependencies to avoid unnecessary overhead
@@ -64,17 +74,18 @@ jobs:
       - name: Bump version
         id: version
         run: |
-          uv venv
           uv version --bump ${{ inputs.bump }} --no-sync
           VERSION=$(uv version --short)
           echo "new_version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # Generate changelog from git commits using git-cliff
+      # Generate changelog from git commits using git-cliff action
       - name: Generate changelog
-        run: |
-          git cliff \
-            --tag "v${{ steps.version.outputs.new_version }}" \
-            --output CHANGELOG.md
+        uses: orhun/git-cliff-action@v4.7.0
+        with:
+          config: cliff.toml
+          args: --tag "v${{ steps.version.outputs.new_version }}"
+        env:
+          OUTPUT: CHANGELOG.md
 
       # Build wheel and source distribution
       - name: Build package
