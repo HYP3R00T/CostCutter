@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-02-01
+
+### Features
+
+- **tasks**: Add changelog and docs tasks
+
+
 ## [0.1.4a2] - 2026-02-01
 
 ### Bug Fixes
@@ -50,11 +57,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **lambda**: Refactor run function and improve reporting
 
-- **docs**: Update guides and configuration for CostCutter
+- **docs**: Update guides and configuration for CostCutter 
 
-- **ec2**: Add handlers for Elastic IPs, snapshots, and volumes
+- **ec2**: Add handlers for Elastic IPs, snapshots, and volumes 
 
-- **config**: Add initial configuration for CostCutter
+- **config**: Add initial configuration for CostCutter 
 
 - **config**: Enhance configuration model with detailed descriptions
 
