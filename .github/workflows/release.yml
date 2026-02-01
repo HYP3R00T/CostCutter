@@ -70,7 +70,6 @@ jobs:
 
       # Bump the package version in pyproject.toml
       # --no-sync: Skip syncing dependencies to avoid unnecessary overhead
-      # uv venv: Create virtual environment required by uv version command
       - name: Bump version
         id: version
         run: |
@@ -87,21 +86,24 @@ jobs:
         env:
           OUTPUT: CHANGELOG.md
 
-      # Build wheel and source distribution
+      # Build wheel and source distribution (uses bumped version)
       - name: Build package
         run: uv build
 
       # Upload package to PyPI using token from repository secrets
+      # Only after successful publish do we commit and create PR
       - name: Publish to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
         run: uv publish
 
       # Generate requirements.txt from uv.lock for compatibility
+      # Only after successful publish
       - name: Generate requirements.txt
         run: uv export --frozen --output-file requirements.txt
 
       # Create release branch with version changes
+      # Only after successful publish to PyPI
       - name: Create release branch and push changes
         id: release_branch
         run: |
@@ -118,7 +120,10 @@ jobs:
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       # Create PR to merge release changes back to main
+      # This PR ensures the version bump stays in sync with the published package
+      # Branch protection on main requires approval before merge
       - name: Create pull request
+        id: pull_request
         uses: peter-evans/create-pull-request@v8.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -128,14 +133,34 @@ jobs:
           body-path: CHANGELOG.md
           labels: release
 
+      # Output PR information for manual review
+      - name: PR created successfully
+        if: steps.pull_request.outputs.pull-request-number != ''
+        run: |
+          echo "✅ Release PR created: #${{ steps.pull_request.outputs.pull-request-number }}"
+          echo "📝 URL: ${{ steps.pull_request.outputs.pull-request-url }}"
+          echo "⏳ Please review and merge the PR to complete the release"
+          echo "🏷️  Once merged, create the git tag and GitHub Release"
+
+      # Fail the workflow if PR creation failed
+      # We should not create a GitHub Release without a PR
+      - name: Ensure release PR exists
+        if: steps.pull_request.outputs.pull-request-number == ''
+        run: |
+          echo "❌ Release PR was not created."
+          exit 1
+
       # Create and push git tag for the new version
+      # Tagging does not depend on merging to main
       - name: Create git tag
+        if: steps.pull_request.outputs.pull-request-number != ''
         run: |
           git tag "v${{ steps.version.outputs.new_version }}"
           git push origin "v${{ steps.version.outputs.new_version }}"
 
       # Create GitHub Release with changelog
       - name: Create GitHub Release
+        if: steps.pull_request.outputs.pull-request-number != ''
         uses: softprops/action-gh-release@v2.5.0
         with:
           tag_name: "v${{ steps.version.outputs.new_version }}"
