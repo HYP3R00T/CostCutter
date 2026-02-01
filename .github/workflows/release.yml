@@ -3,14 +3,23 @@ name: Release CostCutter Package
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: "Version bump type"
-        required: true
+      version_component:
+        description: "Version component to bump (optional if already pre-release)"
+        required: false
         type: choice
+        default: "none"
         options:
+          - none
           - patch
           - minor
           - major
+      prerelease:
+        description: "Pre-release type (optional, 'stable' removes pre-release)"
+        required: false
+        type: choice
+        default: "none"
+        options:
+          - none
           - stable
           - alpha
           - beta
@@ -69,11 +78,31 @@ jobs:
           VIRTUAL_ENV: .venv
 
       # Bump the package version in pyproject.toml
-      # --no-sync: Skip syncing dependencies to avoid unnecessary overhead
+      # Handles: stable→stable, stable→prerelease, prerelease→prerelease, prerelease→stable
       - name: Bump version
         id: version
         run: |
-          uv version --bump ${{ inputs.bump }} --no-sync
+          BUMP_ARGS=""
+
+          # Add version component if specified
+          if [ "${{ inputs.version_component }}" != "none" ]; then
+            BUMP_ARGS="--bump ${{ inputs.version_component }}"
+          fi
+
+          # Add pre-release type if specified
+          if [ "${{ inputs.prerelease }}" != "none" ]; then
+            BUMP_ARGS="$BUMP_ARGS --bump ${{ inputs.prerelease }}"
+          fi
+
+          # Ensure at least one bump option was provided
+          if [ -z "$BUMP_ARGS" ]; then
+            echo "❌ ERROR: Must specify at least one of: version_component or prerelease"
+            exit 1
+          fi
+
+          # Execute version bump
+          uv version $BUMP_ARGS --no-sync
+
           VERSION=$(uv version --short)
           echo "new_version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -85,6 +114,15 @@ jobs:
           args: --tag "v${{ steps.version.outputs.new_version }}"
         env:
           OUTPUT: CHANGELOG.md
+
+      # Verify changelog was generated
+      - name: Verify changelog
+        run: |
+          if [ ! -f CHANGELOG.md ] || [ ! -s CHANGELOG.md ]; then
+            echo "❌ ERROR: CHANGELOG.md was not generated or is empty!"
+            exit 1
+          fi
+          echo "✅ Changelog generated successfully"
 
       # Build wheel and source distribution (uses bumped version)
       - name: Build package
@@ -102,24 +140,8 @@ jobs:
       - name: Generate requirements.txt
         run: uv export --frozen --output-file requirements.txt
 
-      # Create release branch with version changes
-      # Only after successful publish to PyPI
-      - name: Create release branch and push changes
-        id: release_branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          BRANCH="release/v${{ steps.version.outputs.new_version }}"
-          git checkout -b "$BRANCH"
-
-          git add pyproject.toml uv.lock CHANGELOG.md requirements.txt
-          git commit -m "chore(release): v${{ steps.version.outputs.new_version }}"
-          git push origin "$BRANCH"
-
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-
       # Create PR to merge release changes back to main
+      # peter-evans/create-pull-request will create the branch and commit the changes
       # This PR ensures the version bump stays in sync with the published package
       # Branch protection on main requires approval before merge
       - name: Create pull request
@@ -132,6 +154,12 @@ jobs:
           title: "chore(release): v${{ steps.version.outputs.new_version }}"
           body-path: CHANGELOG.md
           labels: release
+          commit-message: "chore(release): v${{ steps.version.outputs.new_version }}"
+          add-paths: |
+            pyproject.toml
+            uv.lock
+            CHANGELOG.md
+            requirements.txt
 
       # Output PR information for manual review
       - name: PR created successfully
