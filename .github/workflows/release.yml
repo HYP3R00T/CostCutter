@@ -18,6 +18,7 @@ on:
           - post
           - dev
 
+# Prevent concurrent releases from running
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -31,23 +32,35 @@ jobs:
       pull-requests: write
 
     steps:
+      # Fetch all git history for changelog generation
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.1
         with:
           fetch-depth: 0 # Fetch all history for changelog generation
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      # Setup Python using version specified in .python-version
+      - name: Setup Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version-file: ".python-version"
 
+      # Install uv for package management and publishing
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.2.1
+
+      # Install mise for managing additional development tools
       - name: Install mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v3.6.1
         with:
           install: true
 
-      # Install tools defined in .mise.toml (sniff, git-cliff, etc.)
+      # Install tools defined in .mise.toml (git-cliff for changelog, etc.)
       - name: Install tools
         run: mise install
 
+      # Bump the package version in pyproject.toml
+      # --no-sync: Skip syncing dependencies to avoid unnecessary overhead
+      # uv venv: Create virtual environment required by uv version command
       - name: Bump version
         id: version
         run: |
@@ -56,23 +69,28 @@ jobs:
           VERSION=$(uv version --short)
           echo "new_version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Generate changelog from git commits using git-cliff
       - name: Generate changelog
         run: |
           git cliff \
             --tag "v${{ steps.version.outputs.new_version }}" \
             --output CHANGELOG.md
 
+      # Build wheel and source distribution
       - name: Build package
         run: uv build
 
+      # Upload package to PyPI using token from repository secrets
       - name: Publish to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
         run: uv publish
 
+      # Generate requirements.txt from uv.lock for compatibility
       - name: Generate requirements.txt
         run: uv export --frozen --output-file requirements.txt
 
+      # Create release branch with version changes
       - name: Create release branch and push changes
         id: release_branch
         run: |
@@ -88,23 +106,26 @@ jobs:
 
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
+      # Create PR to merge release changes back to main
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v8.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          head: "release/v${{ steps.version.outputs.new_version }}"
+          branch: "release/v${{ steps.version.outputs.new_version }}"
           base: main
           title: "chore(release): v${{ steps.version.outputs.new_version }}"
           body-path: CHANGELOG.md
           labels: release
 
+      # Create and push git tag for the new version
       - name: Create git tag
         run: |
           git tag "v${{ steps.version.outputs.new_version }}"
           git push origin "v${{ steps.version.outputs.new_version }}"
 
+      # Create GitHub Release with changelog
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.5.0
         with:
           tag_name: "v${{ steps.version.outputs.new_version }}"
           name: "v${{ steps.version.outputs.new_version }}"
